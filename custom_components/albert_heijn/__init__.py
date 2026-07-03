@@ -8,9 +8,19 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import AhApiClient
 from .const import CONF_REFRESH_TOKEN
-from .coordinator import AhConfigEntry, AhCoordinator
+from .coordinator import AhConfigEntry, AhCoordinator, update_interval_from_options
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+
+async def _async_apply_options(hass: HomeAssistant, entry: AhConfigEntry) -> None:
+    # Applied in place instead of reloading: the token-rotation callback also
+    # updates the entry, and a reload-on-update listener would loop on it.
+    coordinator = entry.runtime_data
+    new_interval = update_interval_from_options(entry)
+    if coordinator.update_interval != new_interval:
+        coordinator.update_interval = new_interval
+        await coordinator.async_request_refresh()
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AhConfigEntry) -> bool:
@@ -30,6 +40,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AhConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
+    entry.async_on_unload(entry.add_update_listener(_async_apply_options))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 

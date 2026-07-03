@@ -26,8 +26,12 @@ DEFAULT_HEADERS: Final = {
 CONF_CODE: Final = "code"
 CONF_REFRESH_TOKEN: Final = "refresh_token"
 CONF_MEMBER_ID: Final = "member_id"
+CONF_UPDATE_INTERVAL: Final = "update_interval"  # hours, options flow
 
-UPDATE_INTERVAL: Final = timedelta(hours=6)
+DEFAULT_UPDATE_INTERVAL_HOURS: Final = 6
+MIN_UPDATE_INTERVAL_HOURS: Final = 1
+MAX_UPDATE_INTERVAL_HOURS: Final = 24
+DEFAULT_UPDATE_INTERVAL: Final = timedelta(hours=DEFAULT_UPDATE_INTERVAL_HOURS)
 TOKEN_EXPIRY_MARGIN: Final = 60  # seconds before expiry at which we refresh proactively
 REQUEST_TIMEOUT: Final = 30  # seconds
 

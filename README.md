@@ -35,6 +35,9 @@ Albert Heijn digital **koopzegels** as a sensor.
 Only the (rotating) refresh token is stored, inside the HA config entry. When it stops
 working, HA prompts to re-authenticate with a fresh code.
 
+The poll interval (default 6 h) is configurable via the entry's **Configure** button.
+A redacted diagnostics download is available from the device page for bug reports.
+
 ## Development
 
 Uses [uv](https://docs.astral.sh/uv/):

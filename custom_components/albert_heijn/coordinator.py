@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -10,11 +11,16 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import AhApiClient, AhApiError, AhAuthError, KoopzegelsData
-from .const import DOMAIN, UPDATE_INTERVAL
+from .const import CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_HOURS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 type AhConfigEntry = ConfigEntry[AhCoordinator]
+
+
+def update_interval_from_options(entry: AhConfigEntry) -> timedelta:
+    """The configured poll interval, falling back to the 6 h default."""
+    return timedelta(hours=entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_HOURS))
 
 
 class AhCoordinator(DataUpdateCoordinator[KoopzegelsData]):
@@ -28,7 +34,7 @@ class AhCoordinator(DataUpdateCoordinator[KoopzegelsData]):
             _LOGGER,
             config_entry=entry,
             name=DOMAIN,
-            update_interval=UPDATE_INTERVAL,
+            update_interval=update_interval_from_options(entry),
         )
         self.client = client
 

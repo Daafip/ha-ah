@@ -27,6 +27,19 @@
       "wrong_account": "The code belongs to a different Albert Heijn account than this entry."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Albert Heijn options",
+        "data": {
+          "update_interval": "Update interval (hours)"
+        },
+        "data_description": {
+          "update_interval": "How often to fetch the koopzegels balance. The balance only changes when you shop, so keep this modest — the API is unofficial."
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "koopzegels": {

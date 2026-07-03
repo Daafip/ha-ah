@@ -8,11 +8,23 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.selector import NumberSelector, NumberSelectorConfig, NumberSelectorMode
 
 from .api import AhApiClient, AhApiError, AhAuthError
-from .const import AUTHORIZE_URL, CONF_CODE, CONF_MEMBER_ID, CONF_REFRESH_TOKEN, DOMAIN
+from .const import (
+    AUTHORIZE_URL,
+    CONF_CODE,
+    CONF_MEMBER_ID,
+    CONF_REFRESH_TOKEN,
+    CONF_UPDATE_INTERVAL,
+    DEFAULT_UPDATE_INTERVAL_HOURS,
+    DOMAIN,
+    MAX_UPDATE_INTERVAL_HOURS,
+    MIN_UPDATE_INTERVAL_HOURS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +44,12 @@ class AhConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the Albert Heijn config flow."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> AhOptionsFlow:
+        """Return the options flow handler."""
+        return AhOptionsFlow()
 
     async def _async_validate_code(self, raw_input: str) -> dict[str, str]:
         """Exchange the pasted code for tokens; returns the entry data."""
@@ -93,4 +111,31 @@ class AhConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=STEP_USER_SCHEMA,
             errors=errors,
             description_placeholders={"authorize_url": AUTHORIZE_URL},
+        )
+
+
+class AhOptionsFlow(OptionsFlow):
+    """Options: how often to poll the AH API."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Show and store the poll-interval option."""
+        if user_input is not None:
+            return self.async_create_entry(data={CONF_UPDATE_INTERVAL: int(user_input[CONF_UPDATE_INTERVAL])})
+
+        current = self.config_entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_HOURS)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_UPDATE_INTERVAL, default=current): NumberSelector(
+                        NumberSelectorConfig(
+                            min=MIN_UPDATE_INTERVAL_HOURS,
+                            max=MAX_UPDATE_INTERVAL_HOURS,
+                            step=1,
+                            unit_of_measurement="h",
+                            mode=NumberSelectorMode.BOX,
+                        )
+                    ),
+                }
+            ),
         )

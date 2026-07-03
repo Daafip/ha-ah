@@ -27,6 +27,19 @@
       "wrong_account": "De code hoort bij een ander Albert Heijn-account dan deze configuratie."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Albert Heijn-opties",
+        "data": {
+          "update_interval": "Bijwerkinterval (uren)"
+        },
+        "data_description": {
+          "update_interval": "Hoe vaak het koopzegelsaldo wordt opgehaald. Het saldo verandert alleen als je boodschappen doet, dus houd dit bescheiden — de API is onofficieel."
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "koopzegels": {

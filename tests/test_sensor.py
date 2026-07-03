@@ -13,8 +13,8 @@ from custom_components.albert_heijn.api import AhApiError
 from custom_components.albert_heijn.const import (
     CONF_MEMBER_ID,
     CONF_REFRESH_TOKEN,
+    DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
-    UPDATE_INTERVAL,
 )
 
 from .const import KOOPZEGELS_DATA, MEMBER_ID, REFRESH_TOKEN
@@ -58,7 +58,7 @@ async def test_sensor_unavailable_on_api_error(hass: HomeAssistant, freezer):
     entity_id, client = await _setup_integration(hass)
     client.async_get_koopzegels.side_effect = AhApiError("down")
 
-    freezer.tick(UPDATE_INTERVAL)
+    freezer.tick(DEFAULT_UPDATE_INTERVAL)
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
 
@@ -68,13 +68,13 @@ async def test_sensor_unavailable_on_api_error(hass: HomeAssistant, freezer):
 async def test_sensor_recovers_after_error(hass: HomeAssistant, freezer):
     entity_id, client = await _setup_integration(hass)
     client.async_get_koopzegels.side_effect = AhApiError("down")
-    freezer.tick(UPDATE_INTERVAL)
+    freezer.tick(DEFAULT_UPDATE_INTERVAL)
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == "unavailable"
 
     client.async_get_koopzegels.side_effect = None
-    freezer.tick(UPDATE_INTERVAL)
+    freezer.tick(DEFAULT_UPDATE_INTERVAL)
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == "510.7"

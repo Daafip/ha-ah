@@ -147,6 +147,7 @@ class AhApiClient:
     async def _async_ensure_token(self) -> None:
         async with self._token_lock:
             if self._access_token is None or time.monotonic() >= self._expires_at - TOKEN_EXPIRY_MARGIN:
+                _LOGGER.debug("Access token missing or near expiry, refreshing")
                 await self.async_refresh()
 
     async def _async_token_request(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -164,9 +165,10 @@ class AhApiClient:
             "x-apollo-operation-type": "query",
         }
         payload = {"operationName": operation, "query": query, "variables": {}}
+        _LOGGER.debug("GraphQL request: %s", operation)
         response = await self._async_post(GRAPHQL_URL, payload, headers)
         if response.status in (401, 403):
-            raise AhAuthError(f"GraphQL request rejected with HTTP {response.status}")
+            raise AhAuthError(f"GraphQL request {operation} rejected with HTTP {response.status}")
         body = await self._async_json(response)
         if body.get("errors"):
             raise AhApiError(f"GraphQL errors: {body['errors']}")
