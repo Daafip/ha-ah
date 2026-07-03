@@ -1,36 +1,31 @@
-
 [project]
-name = "python_package_template_uv"
-version = "0.0.1"
-description = "Python package template uv "
+name = "ha-albert-heijn"
+version = "0.1.0"
+description = "Home Assistant custom integration exposing the Albert Heijn koopzegels balance"
 readme = "README.md"
-license = {text = "GNU-GPL V3"}
-authors = [
-  { name = "Guy Dupuits"},
-  { name = "David Haasnoot"},
-]
-requires-python = ">=3.11"
-dependencies= [
-"ipykernel",
-"ipywidgets",
-"matplotlib",
-"nbclient",
-"nbformat",
-"numpy",
-"openpyxl",
-"pandas",
-"pre-commit",
-"pytest",
-"pytest-cov",
-"pydantic >=2.12.4,<3",
-"quartodoc>=0.11.1",
-"ruff >=0.8.1",
-"tqdm",
-"python_package_template"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "David Haasnoot" }]
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest-homeassistant-custom-component",
+  "aioresponses",
+  "pre-commit",
+  "ruff>=0.8.1",
 ]
 
-[tool.uv.sources]
-python_package_template = { path = "src", editable=true}
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q --cov=custom_components/albert_heijn --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["custom_components/albert_heijn"]
 
 [tool.ruff]
 target-version = "py313"
@@ -38,24 +33,16 @@ line-length = 120
 
 [tool.ruff.lint]
 # See https://docs.astral.sh/ruff/rules/
-select = ["D", "E", "F", "NPY", "PD", "C4", "I", "UP", "RUF"]
+select = ["D", "E", "F", "C4", "I", "UP", "RUF"]
 ignore = [
-    "D1",
-    "D400",
-    "D401",
-    "E501",  # TODO https://docs.astral.sh/ruff/rules/line-too-long/
-    "F403",  # TODO https://docs.astral.sh/ruff/rules/undefined-local-with-import-star/
-    "F405",  # TODO https://docs.astral.sh/ruff/rules/undefined-local-with-import-star-usage/
-    "PD002",
-    "PD003",
-    "PD008",
-    "PD009",
-    "PD010",
-    "PD011",
-    "PD013",
-    "PD015",
+  "D1",
+  "D400",
+  "D401",
+  "E501",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]
+
 [project.urls]
-Documentation = "https://hkv-products-services.github.io/python_package_template"
-Source = "https://github.com/HKV-products-services/python_package_template"
+Source = "https://github.com/Daafip/ha-ah"

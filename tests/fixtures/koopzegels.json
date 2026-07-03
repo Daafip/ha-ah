@@ -1,0 +1,19 @@
+{
+  "data": {
+    "purchaseStampBalance": {
+      "points": {
+        "totalPoints": 1030,
+        "currentBookletPoints": 50,
+        "fullBooklets": 2
+      },
+      "money": {
+        "invested": { "amount": 504.7 },
+        "interest": { "amount": 6.0 },
+        "payout": { "amount": 510.7 }
+      },
+      "constants": {
+        "fullBookletTarget": { "points": 490 }
+      }
+    }
+  }
+}

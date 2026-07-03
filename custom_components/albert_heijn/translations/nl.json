@@ -1,0 +1,37 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Albert Heijn inloggen",
+        "description": "1. Open [de AH-inlogpagina]({authorize_url}) en log in.\n2. De pagina stuurt door naar een `appie://login-exit?code=...`-adres dat de browser niet kan openen. Kopieer dat adres (of alleen de `code`-waarde) uit de adresbalk of de foutpagina.\n3. Plak het hieronder. De code is eenmalig en verloopt snel, dus plak hem direct.",
+        "data": {
+          "code": "Inlogcode of appie://-URL"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Albert Heijn opnieuw verbinden",
+        "description": "De opgeslagen login is verlopen. Open [de AH-inlogpagina]({authorize_url}), log in en plak het nieuwe `appie://login-exit?code=...`-adres of de code hieronder.",
+        "data": {
+          "code": "Inlogcode of appie://-URL"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "De code is geweigerd. Codes zijn eenmalig en verlopen binnen enkele minuten — haal een nieuwe op en probeer het opnieuw.",
+      "cannot_connect": "Kan de Albert Heijn-API niet bereiken. Probeer het later opnieuw.",
+      "unknown": "Onverwachte fout, bekijk de logboeken."
+    },
+    "abort": {
+      "already_configured": "Dit Albert Heijn-account is al geconfigureerd.",
+      "reauth_successful": "Opnieuw verifiëren is gelukt.",
+      "wrong_account": "De code hoort bij een ander Albert Heijn-account dan deze configuratie."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "koopzegels": {
+        "name": "Koopzegels"
+      }
+    }
+  }
+}

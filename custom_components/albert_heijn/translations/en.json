@@ -1,0 +1,37 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Albert Heijn login",
+        "description": "1. Open [the AH login page]({authorize_url}) and log in.\n2. The page redirects to an `appie://login-exit?code=...` address that the browser cannot open. Copy that address (or just the `code` value) from the address bar or the error page.\n3. Paste it below. The code is single-use and expires quickly, so paste it right away.",
+        "data": {
+          "code": "Login code or appie:// URL"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect Albert Heijn",
+        "description": "The stored login has expired. Open [the AH login page]({authorize_url}), log in, and paste the new `appie://login-exit?code=...` address or code below.",
+        "data": {
+          "code": "Login code or appie:// URL"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "The code was rejected. Codes are single-use and expire within minutes — get a fresh one and try again.",
+      "cannot_connect": "Could not reach the Albert Heijn API. Try again later.",
+      "unknown": "Unexpected error, check the logs."
+    },
+    "abort": {
+      "already_configured": "This Albert Heijn account is already configured.",
+      "reauth_successful": "Re-authentication was successful.",
+      "wrong_account": "The code belongs to a different Albert Heijn account than this entry."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "koopzegels": {
+        "name": "Koopzegels"
+      }
+    }
+  }
+}

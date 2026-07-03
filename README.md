@@ -1,73 +1,62 @@
-# Python package template [UV]
+# Albert Heijn koopzegels for Home Assistant
+
+A Home Assistant custom integration (HACS-installable) that exposes the balance of your
+Albert Heijn digital **koopzegels** as a sensor.
 
 > [!WARNING]
-> This is still a work in progress, some documentation on how to use uv might be missing.
+> This rides the **unofficial** AH mobile-app API, which can change or break without
+> notice. It is a personal-use project, polls gently (every 6 hours), and is not
+> affiliated with Albert Heijn.
 
-[UV](https://docs.astral.sh/uv/) is a package which is a replacement for `pip` in package managing for python. [Pixi](https://pixi.prefix.dev/latest/) manages packages broarder sence and thus replaces `conda`. The alternative python package template for pixi can be found at [HKV-products-services/python_package_template](https://github.com/HKV-products-services/python_package_template). Depending on your needs one is more suited than the other.
+## Sensor
 
-This template package contains core functionality for a python package, developed to showcase and speed up the process of developing a python package. This Python package template is developed by HKV, though based heavily on other open source projects and is published under the GNU GPL-3 license.
+`sensor.albert_heijn_koopzegels` — the euro payout value of your saved koopzegels
+(device class *monetary*), with attributes:
 
-## Configuring the template (remove before publishing)
+| Attribute | Meaning |
+| --- | --- |
+| `stamp_count` | Total stamps saved |
+| `full_booklets` | Completed booklets |
+| `booklet_stamps` | Stamps in the current booklet |
+| `stamps_until_next_booklet` | Stamps left to fill the current booklet (target 490) |
+| `invested` / `interest` | Euro paid in and bonus earned |
 
-### Naming
+## Installation
 
-The current package name is `python_package_template` and `# Python package template`, if you search for this in your IDE (e.g. VS Code) you can replace these with your given name.
+1. In HACS: *Custom repositories* → add `https://github.com/Daafip/ha-ah` as
+   category **Integration**, then install **Albert Heijn** and restart HA.
+2. *Settings → Devices & services → Add integration → Albert Heijn*.
+3. Follow the login step:
+   - Open the AH login link shown in the dialog and log in.
+   - The browser ends on an `appie://login-exit?code=...` address it cannot open.
+     Copy that address (or just the `code` value).
+   - Paste it in the dialog. The code is single-use and expires in minutes.
 
-### Pre-commit
+Only the (rotating) refresh token is stored, inside the HA config entry. When it stops
+working, HA prompts to re-authenticate with a fresh code.
 
-This repo has an example pre-commit configuration in `.pre-commit-config.yaml`.
-Depending on your needs you might want to uncomment certain sections.
-Let us know by making an issue if we missed a useful pre-commit.
-Use `pre-commit install --hook-type pre-commit --hook-type pre-push` to automatically run pre-commit.
-To run, use `uv run pre-commit run --all-files`
+## Development
 
-### GitHub Tests
-
-In the folder `.github` there are four workflows which run automatically.
-You will need to adjust these depending on your needs.
-To run use: `uv run pytest`.
-
-### uv
-
-Read bellow for more information on uv and a quick guideline you can include in your project.
-
-## Getting started
-
-### Using install (in future)
-
-run `pip install Python_package_template`
-
-### developing with uv
-
-To manage the environment we use uv.
-
-<details>
-<summary>windows</summary>
-
-```powershell
-powershell -c "irm https://astral.sh/uv/install.ps1 | more"
-```
-
-</details>
-
-<details>
-<summary>Linux/Mac</summary>
+Uses [uv](https://docs.astral.sh/uv/):
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | less
+uv sync --locked          # create the environment
+uv run pytest             # run the test suite (mocked API, no credentials)
+uv run ruff check .       # lint
+uv run pre-commit run --all-files
 ```
 
-</details>
-
-#### installing
-
-With the `uv` command in powershell install the python environment:
+To verify against the real API with your own account (one-time code, nothing stored):
 
 ```bash
- cd ../python_package_template
- uv sync --locked
+uv run python scripts/discover_koopzegels.py "appie://login-exit?code=..."
 ```
 
-The `uv.lock` file loads the correct packages and downloads to the `.venv` file, you can use this environment in developing and resting.
+The AH GraphQL schema is unofficial; if it changes, the query lives in
+[const.py](custom_components/albert_heijn/const.py) and the response mapping in
+`parse_koopzegels` in [api.py](custom_components/albert_heijn/api.py).
 
-For questions about how to use this package contact `dupuits@hkv.nl` or `haasnoot@hkv.nl`.
+## Roadmap
+
+More sensors (bonus box, spending, next delivery) can reuse the same client and
+coordinator — see [CHANGELOG.md](CHANGELOG.md) for what's released.

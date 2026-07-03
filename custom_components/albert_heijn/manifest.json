@@ -1,0 +1,12 @@
+{
+  "domain": "albert_heijn",
+  "name": "Albert Heijn",
+  "codeowners": ["@Daafip"],
+  "config_flow": true,
+  "documentation": "https://github.com/Daafip/ha-ah",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/Daafip/ha-ah/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
