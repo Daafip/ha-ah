@@ -5,6 +5,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-04
+
+### Added
+
+- Three new sensors reusing the same client/coordinator: **Last receipt** (total of the
+  most recent in-store receipt), **Spent this month** (sum of this calendar month's
+  receipts), and **Next delivery** (timestamp of the next planned delivery slot).
+- Receipt and delivery endpoints degrade gracefully: if they fail, the sensors show
+  *unknown* while koopzegels keeps working.
+- Discovery script now also exercises the receipts and deliveries endpoints.
+
+### Changed
+
+- Coordinator data is now an aggregate (`AhData`); diagnostics include all fetched data
+  with transaction and order ids redacted.
+
+### Not included
+
+- Bonus box sensor: the unofficial schema dump documents no usable query shape for it.
+
 ## [0.2.0] - 2026-07-03
 
 ### Added

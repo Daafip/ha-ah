@@ -72,3 +72,40 @@ query HaMemberId {
   }
 }
 """
+
+# Same operation/query as the app (via gwillem/appie-go, verified there against live).
+RECEIPTS_OPERATION: Final = "FetchPosReceipts"
+RECEIPTS_QUERY: Final = """\
+query FetchPosReceipts($offset: Int!, $limit: Int!) {
+  posReceiptsPage(pagination: {offset: $offset, limit: $limit}) {
+    posReceipts {
+      id
+      dateTime
+      totalAmount {
+        amount
+      }
+    }
+  }
+}
+"""
+RECEIPTS_PAGE_LIMIT: Final = 100
+
+DELIVERIES_OPERATION: Final = "HaOrderFulfillments"
+DELIVERIES_QUERY: Final = """\
+query HaOrderFulfillments {
+  orderFulfillments {
+    result {
+      orderId
+      transactionCompleted
+      delivery {
+        status
+        slot {
+          date
+          startTime
+          endTime
+        }
+      }
+    }
+  }
+}
+"""

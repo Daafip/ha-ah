@@ -47,6 +47,27 @@ async def main() -> None:
         print(f"full booklets        : {data.full_booklets}")
         print(f"current booklet      : {data.booklet_stamps}/{data.full_booklet_target}")
         print(f"until next booklet   : {data.stamps_until_next_booklet}")
+
+        print("\n--- receipts (unverified endpoint) ---")
+        try:
+            receipts = await client.async_get_receipts()
+        except Exception as err:
+            print(f"FAILED: {err!r}")
+        else:
+            print(f"{len(receipts)} receipts; most recent:")
+            for receipt in sorted(receipts, key=lambda r: r.moment, reverse=True)[:3]:
+                print(f"  {receipt.moment}  EUR {receipt.total:>7.2f}")
+
+        print("\n--- deliveries (unverified endpoint) ---")
+        try:
+            deliveries = await client.async_get_deliveries()
+        except Exception as err:
+            print(f"FAILED: {err!r}")
+        else:
+            print(f"{len(deliveries)} fulfillments with a slot:")
+            for delivery in deliveries[:3]:
+                print(f"  {delivery.date} {delivery.start_time}-{delivery.end_time}  status={delivery.status}")
+
         print()
         print("refresh token for next run (keep private!):")
         print(f"  {client.refresh_token}")

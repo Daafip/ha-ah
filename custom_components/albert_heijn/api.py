@@ -15,11 +15,16 @@ from .const import (
     CLIENT_ID,
     DEFAULT_FULL_BOOKLET_TARGET,
     DEFAULT_HEADERS,
+    DELIVERIES_OPERATION,
+    DELIVERIES_QUERY,
     GRAPHQL_URL,
     KOOPZEGELS_OPERATION,
     KOOPZEGELS_QUERY,
     MEMBER_ID_OPERATION,
     MEMBER_ID_QUERY,
+    RECEIPTS_OPERATION,
+    RECEIPTS_PAGE_LIMIT,
+    RECEIPTS_QUERY,
     REQUEST_TIMEOUT,
     TOKEN_EXPIRY_MARGIN,
     TOKEN_REFRESH_URL,
@@ -53,6 +58,72 @@ class KoopzegelsData:
     def stamps_until_next_booklet(self) -> int:
         """Stamps still needed to fill the current booklet."""
         return max(0, self.full_booklet_target - self.booklet_stamps)
+
+
+@dataclass(frozen=True)
+class ReceiptSummary:
+    """One in-store receipt, as listed by the receipts query."""
+
+    transaction_id: str
+    moment: str  # ISO datetime string as returned by the API
+    total: float
+
+
+@dataclass(frozen=True)
+class DeliveryInfo:
+    """A (planned) delivery slot from an order fulfillment."""
+
+    order_id: int | None
+    date: str  # YYYY-MM-DD
+    start_time: str | None  # HH:MM
+    end_time: str | None
+    status: str | None
+
+
+def _money_value(value: Any) -> float:
+    """Accept both a flat number and nested ``{"amount": {"amount": x}}`` shapes."""
+    while isinstance(value, dict):
+        value = value.get("amount")
+    return float(value)
+
+
+def parse_receipts(data: dict[str, Any]) -> list[ReceiptSummary]:
+    """Map the posReceiptsPage GraphQL payload onto :class:`ReceiptSummary` items."""
+    try:
+        items = (data.get("posReceiptsPage") or {}).get("posReceipts") or []
+        return [
+            ReceiptSummary(
+                transaction_id=str(item["id"]),
+                moment=str(item["dateTime"]),
+                total=_money_value(item["totalAmount"]),
+            )
+            for item in items
+        ]
+    except (KeyError, TypeError, ValueError) as err:
+        raise AhApiError(f"Unexpected receipts response: {err!r}") from err
+
+
+def parse_deliveries(data: dict[str, Any]) -> list[DeliveryInfo]:
+    """Map the fulfillments GraphQL payload onto :class:`DeliveryInfo` items."""
+    try:
+        fulfillments = (data.get("orderFulfillments") or {}).get("result") or []
+        deliveries = []
+        for item in fulfillments:
+            slot = ((item.get("delivery") or {}).get("slot")) or {}
+            if not slot.get("date"):
+                continue
+            deliveries.append(
+                DeliveryInfo(
+                    order_id=item.get("orderId"),
+                    date=str(slot["date"]),
+                    start_time=slot.get("startTime"),
+                    end_time=slot.get("endTime"),
+                    status=(item.get("delivery") or {}).get("status"),
+                )
+            )
+        return deliveries
+    except (KeyError, TypeError, ValueError) as err:
+        raise AhApiError(f"Unexpected fulfillments response: {err!r}") from err
 
 
 def parse_koopzegels(data: dict[str, Any]) -> KoopzegelsData:
@@ -130,6 +201,18 @@ class AhApiClient:
         data = await self._async_graphql(KOOPZEGELS_OPERATION, KOOPZEGELS_QUERY)
         return parse_koopzegels(data)
 
+    async def async_get_receipts(self) -> list[ReceiptSummary]:
+        """Fetch the list of in-store receipts."""
+        data = await self._async_graphql(
+            RECEIPTS_OPERATION, RECEIPTS_QUERY, {"offset": 0, "limit": RECEIPTS_PAGE_LIMIT}
+        )
+        return parse_receipts(data)
+
+    async def async_get_deliveries(self) -> list[DeliveryInfo]:
+        """Fetch planned/known deliveries from order fulfillments."""
+        data = await self._async_graphql(DELIVERIES_OPERATION, DELIVERIES_QUERY)
+        return parse_deliveries(data)
+
     def _store_tokens(self, data: dict[str, Any]) -> None:
         try:
             access_token = data["access_token"]
@@ -156,7 +239,9 @@ class AhApiClient:
             raise AhAuthError(f"Token request rejected with HTTP {response.status}")
         return await self._async_json(response)
 
-    async def _async_graphql(self, operation: str, query: str) -> dict[str, Any]:
+    async def _async_graphql(
+        self, operation: str, query: str, variables: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         await self._async_ensure_token()
         headers = {
             **DEFAULT_HEADERS,
@@ -164,7 +249,7 @@ class AhApiClient:
             "x-apollo-operation-name": operation,
             "x-apollo-operation-type": "query",
         }
-        payload = {"operationName": operation, "query": query, "variables": {}}
+        payload = {"operationName": operation, "query": query, "variables": variables or {}}
         _LOGGER.debug("GraphQL request: %s", operation)
         response = await self._async_post(GRAPHQL_URL, payload, headers)
         if response.status in (401, 403):
@@ -186,7 +271,7 @@ class AhApiClient:
         except aiohttp.ClientError as err:
             raise AhApiError(f"Error talking to {url}: {err!r}") from err
 
-    async def _async_json(self, response: aiohttp.ClientResponse) -> dict[str, Any]:
+    async def _async_json(self, response: aiohttp.ClientResponse) -> Any:
         if response.status >= 400:
             raise AhApiError(f"HTTP {response.status} from {response.url}")
         try:

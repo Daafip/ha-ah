@@ -44,6 +44,15 @@
     "sensor": {
       "koopzegels": {
         "name": "Koopzegels"
+      },
+      "last_receipt": {
+        "name": "Last receipt"
+      },
+      "month_spending": {
+        "name": "Spent this month"
+      },
+      "next_delivery": {
+        "name": "Next delivery"
       }
     }
   }

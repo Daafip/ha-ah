@@ -1,0 +1,32 @@
+{
+  "data": {
+    "orderFulfillments": {
+      "result": [
+        {
+          "orderId": 555,
+          "transactionCompleted": false,
+          "delivery": {
+            "status": "PLANNED",
+            "slot": {
+              "date": "2099-01-05",
+              "startTime": "18:00",
+              "endTime": "20:00"
+            }
+          }
+        },
+        {
+          "orderId": 444,
+          "transactionCompleted": true,
+          "delivery": {
+            "status": "DELIVERED",
+            "slot": {
+              "date": "2026-01-02",
+              "startTime": "08:00",
+              "endTime": "10:00"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

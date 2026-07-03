@@ -44,6 +44,15 @@
     "sensor": {
       "koopzegels": {
         "name": "Koopzegels"
+      },
+      "last_receipt": {
+        "name": "Laatste kassabon"
+      },
+      "month_spending": {
+        "name": "Uitgegeven deze maand"
+      },
+      "next_delivery": {
+        "name": "Volgende bezorging"
       }
     }
   }

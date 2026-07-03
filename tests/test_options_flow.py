@@ -1,7 +1,7 @@
 """Tests for the options flow and applying the poll interval."""
 
 from datetime import timedelta
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -15,7 +15,7 @@ from custom_components.albert_heijn.const import (
     DOMAIN,
 )
 
-from .const import KOOPZEGELS_DATA, MEMBER_ID, REFRESH_TOKEN
+from .const import MEMBER_ID, REFRESH_TOKEN, make_client
 
 
 async def _setup(hass: HomeAssistant, options=None):
@@ -26,8 +26,7 @@ async def _setup(hass: HomeAssistant, options=None):
         options=options or {},
     )
     entry.add_to_hass(hass)
-    client = AsyncMock()
-    client.async_get_koopzegels.return_value = KOOPZEGELS_DATA
+    client = make_client()
     with patch("custom_components.albert_heijn.AhApiClient", return_value=client) as client_cls:
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()

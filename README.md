@@ -8,10 +8,16 @@ Albert Heijn digital **koopzegels** as a sensor.
 > notice. It is a personal-use project, polls gently (every 6 hours), and is not
 > affiliated with Albert Heijn.
 
-## Sensor
+## Sensors
 
-`sensor.albert_heijn_koopzegels` — the euro payout value of your saved koopzegels
-(device class *monetary*), with attributes:
+| Sensor | Meaning |
+| --- | --- |
+| **Koopzegels** | Euro payout value of your saved koopzegels |
+| **Last receipt** | Total of your most recent in-store receipt |
+| **Spent this month** | Sum of this calendar month's in-store receipts |
+| **Next delivery** | Timestamp of the next planned delivery slot |
+
+The koopzegels sensor carries attributes for the stamp counts:
 
 | Attribute | Meaning |
 | --- | --- |
@@ -20,6 +26,9 @@ Albert Heijn digital **koopzegels** as a sensor.
 | `booklet_stamps` | Stamps in the current booklet |
 | `stamps_until_next_booklet` | Stamps left to fill the current booklet (target 490) |
 | `invested` / `interest` | Euro paid in and bonus earned |
+
+The receipt and delivery sensors are best-effort: when those endpoints fail or don't
+apply to your account, they show *unknown* while koopzegels keeps working.
 
 ## Installation
 

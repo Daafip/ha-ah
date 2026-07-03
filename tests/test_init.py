@@ -1,6 +1,6 @@
 """Tests for setup and unload of the integration."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -10,7 +10,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.albert_heijn.api import AhApiError, AhAuthError
 from custom_components.albert_heijn.const import CONF_MEMBER_ID, CONF_REFRESH_TOKEN, DOMAIN
 
-from .const import KOOPZEGELS_DATA, MEMBER_ID, REFRESH_TOKEN
+from .const import MEMBER_ID, REFRESH_TOKEN, make_client
 
 
 def _make_entry() -> MockConfigEntry:
@@ -22,9 +22,8 @@ def _make_entry() -> MockConfigEntry:
     )
 
 
-def _patch_client():
-    client = AsyncMock()
-    client.async_get_koopzegels.return_value = KOOPZEGELS_DATA
+def _patch_client(client=None):
+    client = client or make_client()
     return patch("custom_components.albert_heijn.AhApiClient", return_value=client), client
 
 
@@ -50,8 +49,9 @@ async def test_setup_and_unload(hass: HomeAssistant):
 async def test_api_error_sets_retry(hass: HomeAssistant):
     entry = _make_entry()
     entry.add_to_hass(hass)
-    patcher, client = _patch_client()
+    client = make_client()
     client.async_get_koopzegels.side_effect = AhApiError("down")
+    patcher, _ = _patch_client(client)
     with patcher:
         assert not await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -61,8 +61,9 @@ async def test_api_error_sets_retry(hass: HomeAssistant):
 async def test_auth_error_starts_reauth(hass: HomeAssistant):
     entry = _make_entry()
     entry.add_to_hass(hass)
-    patcher, client = _patch_client()
+    client = make_client()
     client.async_get_koopzegels.side_effect = AhAuthError("expired")
+    patcher, _ = _patch_client(client)
     with patcher:
         assert not await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()

@@ -1,0 +1,18 @@
+{
+  "data": {
+    "posReceiptsPage": {
+      "posReceipts": [
+        {
+          "id": "9001",
+          "dateTime": "2026-07-01T14:30:00",
+          "totalAmount": { "amount": 45.67 }
+        },
+        {
+          "id": "9000",
+          "dateTime": "2026-06-20T10:00:00",
+          "totalAmount": { "amount": 12.34 }
+        }
+      ]
+    }
+  }
+}

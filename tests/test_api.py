@@ -12,11 +12,24 @@ from custom_components.albert_heijn.api import (
     AhApiClient,
     AhApiError,
     AhAuthError,
+    parse_deliveries,
     parse_koopzegels,
+    parse_receipts,
 )
-from custom_components.albert_heijn.const import GRAPHQL_URL, TOKEN_REFRESH_URL, TOKEN_URL
+from custom_components.albert_heijn.const import (
+    GRAPHQL_URL,
+    TOKEN_REFRESH_URL,
+    TOKEN_URL,
+)
 
-from .const import KOOPZEGELS_RESPONSE, MEMBER_RESPONSE, REFRESH_TOKEN, TOKEN_RESPONSE
+from .const import (
+    DELIVERIES_RESPONSE,
+    KOOPZEGELS_RESPONSE,
+    MEMBER_RESPONSE,
+    RECEIPTS_RESPONSE,
+    REFRESH_TOKEN,
+    TOKEN_RESPONSE,
+)
 
 
 @pytest.fixture
@@ -159,3 +172,46 @@ def test_parse_koopzegels_defaults_booklet_target():
     payload = KOOPZEGELS_RESPONSE["data"]["purchaseStampBalance"]
     stripped = {"purchaseStampBalance": {**payload, "constants": None}}
     assert parse_koopzegels(stripped).full_booklet_target == 490
+
+
+async def test_get_receipts(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(GRAPHQL_URL, payload=RECEIPTS_RESPONSE)
+        receipts = await client.async_get_receipts()
+    assert len(receipts) == 2
+    assert receipts[0].transaction_id == "9001"
+    assert receipts[0].moment == "2026-07-01T14:30:00"
+    assert receipts[0].total == 45.67
+    # The pagination variables must be sent along.
+    request = mock.requests[("POST", URL(GRAPHQL_URL))][0]
+    assert request.kwargs["json"]["variables"] == {"offset": 0, "limit": 100}
+
+
+async def test_get_deliveries(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(GRAPHQL_URL, payload=DELIVERIES_RESPONSE)
+        deliveries = await client.async_get_deliveries()
+    assert len(deliveries) == 2
+    assert deliveries[0].order_id == 555
+    assert deliveries[0].date == "2099-01-05"
+    assert deliveries[0].start_time == "18:00"
+    assert deliveries[0].status == "PLANNED"
+
+
+def test_parse_receipts_tolerates_empty_page():
+    assert parse_receipts({"posReceiptsPage": None}) == []
+    assert parse_receipts({"posReceiptsPage": {"posReceipts": None}}) == []
+
+
+def test_parse_receipts_bad_shape_raises():
+    with pytest.raises(AhApiError):
+        parse_receipts({"posReceiptsPage": {"posReceipts": [{"dateTime": "2026-07-01T10:00:00"}]}})
+
+
+def test_parse_deliveries_skips_slotless_and_tolerates_empty():
+    assert parse_deliveries({"orderFulfillments": {"result": [{"orderId": 1, "delivery": {"slot": None}}]}}) == []
+    assert parse_deliveries({"orderFulfillments": None}) == []
