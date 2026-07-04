@@ -41,6 +41,23 @@ def _entity_id(hass: HomeAssistant, key: str) -> str:
     return entity_id
 
 
+async def test_every_sensor_has_icon_and_name_translations(hass: HomeAssistant):
+    # icons.json is rendered by the frontend (not state attributes), so
+    # validate the files stay in sync with the entities we create.
+    import json
+    from pathlib import Path
+
+    component_dir = Path(__file__).parent.parent / "custom_components" / "albert_heijn"
+    icons = json.loads((component_dir / "icons.json").read_text())["entity"]["sensor"]
+    strings = json.loads((component_dir / "strings.json").read_text())["entity"]["sensor"]
+
+    await _setup_integration(hass)
+    for key in ("koopzegels", "last_receipt", "month_spending", "next_delivery"):
+        assert hass.states.get(_entity_id(hass, key)) is not None
+        assert icons[key]["default"].startswith("mdi:")
+        assert strings[key]["name"]
+
+
 async def test_koopzegels_state_and_attributes(hass: HomeAssistant):
     await _setup_integration(hass)
     state = hass.states.get(_entity_id(hass, "koopzegels"))

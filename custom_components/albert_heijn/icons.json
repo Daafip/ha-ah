@@ -1,0 +1,18 @@
+{
+  "entity": {
+    "sensor": {
+      "koopzegels": {
+        "default": "mdi:postage-stamp"
+      },
+      "last_receipt": {
+        "default": "mdi:receipt-text"
+      },
+      "month_spending": {
+        "default": "mdi:cash-multiple"
+      },
+      "next_delivery": {
+        "default": "mdi:truck-delivery"
+      }
+    }
+  }
+}

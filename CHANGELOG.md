@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-04
+
+### Added
+
+- Entity icons via `icons.json` (postage stamp, receipt, cash, delivery truck).
+- Checklist for the brand-logo and HACS default-store submissions
+  (`docs/hacs-default-submission.md`).
+
 ## [0.3.0] - 2026-07-04
 
 ### Added
