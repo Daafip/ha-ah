@@ -11,13 +11,13 @@ no icon field. The entity icons inside HA are already covered by `icons.json`.
 
 Steps:
 
-1. Get the official AH app icon as a square PNG (nominative use of the brand mark for an
-   integration that talks to their service is the accepted practice in the brands repo).
-2. Fork `home-assistant/brands` and add under `custom_integrations/albert_heijn/`:
-   - `icon.png` — 256×256
-   - `icon@2x.png` — 512×512
-   - optionally `logo.png` / `logo@2x.png` if the wordmark differs from the icon
-3. Open a PR; the repo's CI validates dimensions and naming.
+1. ✅ Assets are prepared in [`docs/brands/custom_integrations/albert_heijn/`](brands/custom_integrations/albert_heijn/):
+   `icon.png` (256×256) and `icon@2x.png` (512×512), derived from the official App Store
+   artwork of the Albert Heijn app (nominative use of the brand mark for an integration
+   that talks to their service is the accepted practice in the brands repo).
+2. Fork `home-assistant/brands`, copy that `custom_integrations/albert_heijn/` folder
+   into the fork's `custom_integrations/`, and open a PR; their CI validates dimensions
+   and naming.
 
 ## 2. HACS default store — hacs/default
 

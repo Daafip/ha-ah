@@ -318,32 +318,34 @@ Format: Keep a Changelog. Versioning: SemVer.
 ## 10. Phased roadmap
 
 **Phase 0 — Scaffold**
-- [ ] Repo skeleton, `hacs.json`, `manifest.json`, empty integration that loads cleanly
-- [ ] `pixi.toml`, `pyproject.toml` (ruff), `LICENSE`, `README.md`, `CHANGELOG.md`
-- [ ] CI green (hassfest + HACS + an empty pytest)
+- [x] Repo skeleton, `hacs.json`, `manifest.json`, empty integration that loads cleanly
+- [x] `pixi.toml`, `pyproject.toml` (ruff), `LICENSE`, `README.md`, `CHANGELOG.md`
+- [x] CI green (hassfest + HACS + an empty pytest)
 
 **Phase 1 — Auth + discovery**
-- [ ] `AhApiClient` token methods (anonymous, code exchange, refresh) + tests
-- [ ] `config_flow` user step (paste code) + reauth + tests
-- [ ] **Discover the koopzegels GraphQL query** via `gwillem/appie-go` schema dump, or a
+- [x] `AhApiClient` token methods (anonymous, code exchange, refresh) + tests
+- [x] `config_flow` user step (paste code) + reauth + tests
+- [x] **Discover the koopzegels GraphQL query** via `gwillem/appie-go` schema dump, or a
       one-off mitmproxy capture of the app's "Mijn koopzegels" screen
-- [ ] Throwaway script/test proving you can read your real balance
+- [x] Throwaway script/test proving you can read your real balance
 
 **Phase 2 — Koopzegels sensor (first release)**
-- [ ] `async_get_koopzegels()` + response mapping + tests
-- [ ] `AhCoordinator` (6h poll, auth-failure → reauth) + tests
-- [ ] `KoopzegelsSensor` (monetary, attributes) + tests
-- [ ] Manual smoke test in dev HA
-- [ ] Tag `v0.1.0`, write changelog, GitHub release
+- [x] `async_get_koopzegels()` + response mapping + tests
+- [x] `AhCoordinator` (6h poll, auth-failure → reauth) + tests
+- [x] `KoopzegelsSensor` (monetary, attributes) + tests
+- [x] Manual smoke test in dev HA
+- [x] Tag `v0.1.0`, write changelog, GitHub release
 
 **Phase 3 — Hardening & polish**
-- [ ] `nl` + `en` translations, friendly config-flow text
-- [ ] Options flow (poll interval), redacted diagnostics, better error messages
-- [ ] `v0.2.0`
+- [x] `nl` + `en` translations, friendly config-flow text
+- [x] Options flow (poll interval), redacted diagnostics, better error messages
+- [x] `v0.2.0`
 
 **Phase 4 — Optional expansion**
-- [ ] More sensors (bonus box, spending, next delivery) reusing the client/coordinator
-- [ ] Consider HACS default-repository submission
+- [x] More sensors (spending, next delivery) reusing the client/coordinator — v0.3.0
+      (bonus box skipped: no documented query shape in the schema dump)
+- [x] Consider HACS default-repository submission — considered; checklist + prepared
+      brand assets in `docs/hacs-default-submission.md` (external PRs remain)
 
 ---
 
