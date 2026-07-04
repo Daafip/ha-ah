@@ -358,3 +358,59 @@ Format: Keep a Changelog. Versioning: SemVer.
    attempt programmatic login later.
 4. **Poll interval default:** 6h is a safe start; tune once you see how often the balance
    actually changes.
+
+---
+
+## 12. Phase 5 — expansion backlog (brainstorm 2026-07-04)
+
+Everything below is confirmed to exist in the `appie-go` schema dump
+(`graphql-schema-20260118.md`); exact field shapes still need the discovery-script
+treatment before building, like koopzegels got.
+
+### Confirmed endpoints and what they could become
+
+| API surface | Data | Candidate HA surface |
+| --- | --- | --- |
+| `milesBalance`, `milesTransactions` | Air Miles balance (Int) | Sensor "Air Miles" |
+| `groceryList` + `groceryList*` mutations | The AH shopping list | **`todo` entity, two-way sync** |
+| `favoriteListV2` + `favoriteList*V2` mutations | Named favorite lists | Second `todo` entity / service |
+| `basket` (`summary`, `items`) | Current webshop basket | Sensors: basket total (EUR), item count |
+| `bonusPersonalPromotionBundles`, `bonusPromotions` | Personal bonus-box offers | Sensor: offers waiting; attributes list them |
+| `bonusActivatePersonalPromotion` (mutation) | Activate an offer | Button "Activate all bonus box offers" |
+| `order(id).delivery.trackAndTraceV2.etaBlock` | Live delivery ETA (start/end) | Sensor that tightens the poll on delivery day |
+| `orderDeliverySlots` | Bookable slots | Sensor: next available slot |
+| `orderFulfillments` (have it) | All upcoming deliveries | **`calendar` entity** with slot windows |
+| `orderReport`, `orderReportTotal` | Online-order spending | Extend month-spending to online orders |
+| `posReceiptDetails(id)` | Receipt line items | Event/attribute: last receipt products |
+| `purchaseStampTransactions` | Koopzegels history | Attribute or event on balance change |
+| `purchaseStampSavingGoal` + set/delete mutations | Saving goal (name, amount) | Sensor progress-to-goal; `number` to set it |
+| `paymentsGetFullBookletsCount` | Full booklets (Int) | Cross-check for the koopzegels sensor |
+| `settlementsTotal` | Refunds owed to you | Sensor "Open settlements" (EUR) |
+| `subscriptionPremiumSavingsV2` | Premium savings (`totalSavedAmount`) | Sensor "Saved with Premium" |
+| `subscriptionCurrent`, `subscriptionSummary` | Subscription state | Diagnostic sensor |
+| `storesSearch`, `storesInformation`, `GetFavoriteStore` | Store opening hours | Binary sensor "favorite store open" + closes-at |
+| `products` search | Product prices | Price-tracker sensors for configured product ids |
+
+### Suggested order
+
+1. **5a — Shopping list as `todo` entity.** The standout HA feature: AH list on a
+   dashboard, voice-add via assist, check off while shopping. First write-path — needs
+   the mutation treated carefully.
+2. **5b — Deliveries `calendar` + live ETA sensor.** Calendar from `orderFulfillments`
+   (data already fetched); on delivery day poll `trackAndTraceV2` more often.
+3. **5c — Bonus box.** Offers-waiting sensor first; the activate-button mutation later.
+4. **5d — Koopzegels extras.** Saving-goal progress + `number` entity, transactions.
+5. **5e — Money sensors.** Premium savings, settlements, online-order spending,
+   Air Miles. Cheap wins, same coordinator pattern.
+
+### Design notes
+
+- **Read-only first.** Mutations (`todo` sync, bonus activation, saving goal) write to a
+  live account through an unofficial API — ship behind an options-flow toggle, default
+  off, and never retry a mutation blindly.
+- **Feature toggles.** One options-flow section per feature group so a broken endpoint
+  can be switched off without a release; every fetch stays best-effort like receipts.
+- **Poll budget.** Keep the single coordinator, but a delivery-day fast lane (ETA) may
+  justify a second, short-lived coordinator only active around a planned slot.
+- **Out of scope.** Recipes/cookbook, CMS content, B2B/company, customer-care
+  conversations — not home-automation material.
