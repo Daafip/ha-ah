@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 
 ## [Unreleased]
 
+### Added
+
+- README examples: Lovelace card, balance-change notification, and a store-zone
+  automation with a persistent notification that clears on leaving.
+
 ## [0.3.1] - 2026-07-04
 
 ### Added

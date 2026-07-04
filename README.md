@@ -47,6 +47,128 @@ working, HA prompts to re-authenticate with a fresh code.
 The poll interval (default 6 h) is configurable via the entry's **Configure** button.
 A redacted diagnostics download is available from the device page for bug reports.
 
+## Examples
+
+Entity ids below assume an English-language HA install; check yours under
+*Settings → Devices & services → Albert Heijn* (a Dutch install generates ids from the
+Dutch names, e.g. `sensor.albert_heijn_uitgegeven_deze_maand`).
+
+### Lovelace card
+
+An overview card plus a booklet progress line:
+
+```yaml
+type: vertical-stack
+cards:
+  - type: entities
+    title: Albert Heijn
+    entities:
+      - sensor.albert_heijn_koopzegels
+      - sensor.albert_heijn_last_receipt
+      - sensor.albert_heijn_spent_this_month
+      - sensor.albert_heijn_next_delivery
+  - type: markdown
+    content: >-
+      {% set k = 'sensor.albert_heijn_koopzegels' %}
+      **Boekje:** {{ state_attr(k, 'booklet_stamps') }}/{{ state_attr(k, 'full_booklet_target') }}
+      zegels — nog {{ state_attr(k, 'stamps_until_next_booklet') }} tot een vol boekje
+      ({{ state_attr(k, 'full_booklets') }} vol).
+```
+
+### Simple automation — ping when the balance changes
+
+Fires after you've shopped and the next poll picks up the new balance:
+
+```yaml
+alias: "AH: koopzegels bijgewerkt"
+triggers:
+  - trigger: state
+    entity_id: sensor.albert_heijn_koopzegels
+    not_from: [unavailable, unknown]
+    not_to: [unavailable, unknown]
+actions:
+  - action: notify.notify  # or notify.mobile_app_<your_phone>
+    data:
+      title: "Koopzegels"
+      message: >-
+        Saldo is nu € {{ states('sensor.albert_heijn_koopzegels') }} — nog
+        {{ state_attr('sensor.albert_heijn_koopzegels', 'stamps_until_next_booklet') }}
+        zegels tot een vol boekje.
+mode: single
+```
+
+### Complex automation — store-zone notification
+
+Define a zone per AH store you visit (*Settings → Areas, labels & zones → Zones*, or YAML):
+
+```yaml
+# configuration.yaml
+zone:
+  - name: AH Centrum
+    latitude: 52.37403
+    longitude: 4.88969
+    radius: 75
+    icon: mdi:cart
+  - name: AH XL
+    latitude: 52.35870
+    longitude: 4.90800
+    radius: 100
+    icon: mdi:cart
+```
+
+While you're inside one of those zones, a persistent notification shows your koopzegels
+status; it disappears again when you leave. The fixed `notification_id` is what makes the
+dismiss target exactly the notification that enter created:
+
+```yaml
+alias: "AH: koopzegels-herinnering in de winkel"
+description: Persistent notification while at an AH store, removed on leaving.
+triggers:
+  - trigger: zone
+    entity_id: person.david
+    zone:
+      - zone.ah_centrum
+      - zone.ah_xl
+    event: enter
+    id: enter
+  - trigger: zone
+    entity_id: person.david
+    zone:
+      - zone.ah_centrum
+      - zone.ah_xl
+    event: leave
+    id: leave
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: enter
+        sequence:
+          - action: persistent_notification.create
+            data:
+              notification_id: ah_koopzegels_store
+              title: "🛒 Albert Heijn"
+              message: >-
+                {% set k = 'sensor.albert_heijn_koopzegels' %}
+                Koopzegelsaldo: **€ {{ states(k) }}**
+
+                Boekje: {{ state_attr(k, 'booklet_stamps') }}/{{ state_attr(k, 'full_booklet_target') }}
+                zegels (nog {{ state_attr(k, 'stamps_until_next_booklet') }} tot een vol boekje).
+      - conditions:
+          - condition: trigger
+            id: leave
+        sequence:
+          - action: persistent_notification.dismiss
+            data:
+              notification_id: ah_koopzegels_store
+mode: restart
+```
+
+`mode: restart` keeps the behaviour sane when you hop between two adjacent store zones:
+the latest enter/leave always wins. Swap `persistent_notification` for
+`notify.mobile_app_<phone>` with `tag:`/`clear_notification` if you want it on your
+phone instead of the HA dashboard.
+
 ## Development
 
 Uses [uv](https://docs.astral.sh/uv/):
