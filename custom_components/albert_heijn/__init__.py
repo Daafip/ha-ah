@@ -10,7 +10,7 @@ from .api import AhApiClient
 from .const import CONF_REFRESH_TOKEN
 from .coordinator import AhConfigEntry, AhCoordinator, update_interval_from_options
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.CALENDAR, Platform.SENSOR]
 
 
 async def _async_apply_options(hass: HomeAssistant, entry: AhConfigEntry) -> None:

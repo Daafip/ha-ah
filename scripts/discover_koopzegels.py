@@ -68,6 +68,19 @@ async def main() -> None:
             for delivery in deliveries[:3]:
                 print(f"  {delivery.date} {delivery.start_time}-{delivery.end_time}  status={delivery.status}")
 
+        for label, fetch in (
+            ("air miles", client.async_get_miles),
+            ("premium savings", client.async_get_premium_savings),
+            ("settlements total", client.async_get_settlements_total),
+            ("saving goal", client.async_get_saving_goal),
+            ("basket", client.async_get_basket),
+        ):
+            print(f"\n--- {label} (unverified endpoint) ---")
+            try:
+                print(await fetch())
+            except Exception as err:
+                print(f"FAILED: {err!r}")
+
         print()
         print("refresh token for next run (keep private!):")
         print(f"  {client.refresh_token}")

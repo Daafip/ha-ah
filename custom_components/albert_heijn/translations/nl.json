@@ -41,6 +41,11 @@
     }
   },
   "entity": {
+    "calendar": {
+      "deliveries": {
+        "name": "Bezorgingen"
+      }
+    },
     "sensor": {
       "koopzegels": {
         "name": "Koopzegels"
@@ -53,6 +58,21 @@
       },
       "next_delivery": {
         "name": "Volgende bezorging"
+      },
+      "air_miles": {
+        "name": "Air Miles"
+      },
+      "premium_savings": {
+        "name": "Premium-besparing"
+      },
+      "settlements": {
+        "name": "Openstaande verrekeningen"
+      },
+      "saving_goal": {
+        "name": "Spaardoel"
+      },
+      "basket": {
+        "name": "Winkelmandje"
       }
     }
   }

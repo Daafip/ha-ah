@@ -1,5 +1,10 @@
 {
   "entity": {
+    "calendar": {
+      "deliveries": {
+        "default": "mdi:truck-delivery"
+      }
+    },
     "sensor": {
       "koopzegels": {
         "default": "mdi:postage-stamp"
@@ -12,6 +17,21 @@
       },
       "next_delivery": {
         "default": "mdi:truck-delivery"
+      },
+      "air_miles": {
+        "default": "mdi:airplane"
+      },
+      "premium_savings": {
+        "default": "mdi:piggy-bank"
+      },
+      "settlements": {
+        "default": "mdi:cash-refund"
+      },
+      "saving_goal": {
+        "default": "mdi:bullseye-arrow"
+      },
+      "basket": {
+        "default": "mdi:basket"
       }
     }
   }

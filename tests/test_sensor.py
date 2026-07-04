@@ -1,5 +1,6 @@
 """Tests for the sensors."""
 
+from datetime import timedelta
 from unittest.mock import patch
 
 from homeassistant.core import HomeAssistant
@@ -52,7 +53,18 @@ async def test_every_sensor_has_icon_and_name_translations(hass: HomeAssistant):
     strings = json.loads((component_dir / "strings.json").read_text())["entity"]["sensor"]
 
     await _setup_integration(hass)
-    for key in ("koopzegels", "last_receipt", "month_spending", "next_delivery"):
+    keys = (
+        "koopzegels",
+        "last_receipt",
+        "month_spending",
+        "next_delivery",
+        "air_miles",
+        "premium_savings",
+        "settlements",
+        "saving_goal",
+        "basket",
+    )
+    for key in keys:
         assert hass.states.get(_entity_id(hass, key)) is not None
         assert icons[key]["default"].startswith("mdi:")
         assert strings[key]["name"]
@@ -97,6 +109,24 @@ async def test_next_delivery_sensor(hass: HomeAssistant):
     assert state.attributes["device_class"] == "timestamp"
 
 
+async def test_phase5_sensors(hass: HomeAssistant):
+    await _setup_integration(hass)
+
+    assert hass.states.get(_entity_id(hass, "air_miles")).state == "1234"
+    assert hass.states.get(_entity_id(hass, "premium_savings")).state == "56.78"
+    assert hass.states.get(_entity_id(hass, "settlements")).state == "3.21"
+
+    goal = hass.states.get(_entity_id(hass, "saving_goal"))
+    assert goal.state == "52.0"
+    assert goal.attributes["name"] == "Vakantie"
+    assert goal.attributes["saved"] == 510.7
+    assert goal.attributes["progress_pct"] == 982.1
+
+    basket = hass.states.get(_entity_id(hass, "basket"))
+    assert basket.state == "34.56"
+    assert basket.attributes["quantity"] == 12
+
+
 async def test_optional_sensors_unknown_when_endpoints_fail(hass: HomeAssistant):
     client = make_client()
     client.async_get_receipts.side_effect = AhApiError("broke")
@@ -114,9 +144,9 @@ async def test_sensors_unavailable_on_api_error(hass: HomeAssistant, freezer):
     entity_id = _entity_id(hass, "koopzegels")
     client.async_get_koopzegels.side_effect = AhApiError("down")
 
-    freezer.tick(DEFAULT_UPDATE_INTERVAL)
+    freezer.tick(DEFAULT_UPDATE_INTERVAL + timedelta(seconds=5))
     async_fire_time_changed(hass)
-    await hass.async_block_till_done()
+    await hass.async_block_till_done(wait_background_tasks=True)
 
     assert hass.states.get(entity_id).state == "unavailable"
     assert hass.states.get(_entity_id(hass, "last_receipt")).state == "unavailable"
@@ -126,13 +156,13 @@ async def test_sensor_recovers_after_error(hass: HomeAssistant, freezer):
     client = await _setup_integration(hass)
     entity_id = _entity_id(hass, "koopzegels")
     client.async_get_koopzegels.side_effect = AhApiError("down")
-    freezer.tick(DEFAULT_UPDATE_INTERVAL)
+    freezer.tick(DEFAULT_UPDATE_INTERVAL + timedelta(seconds=5))
     async_fire_time_changed(hass)
-    await hass.async_block_till_done()
+    await hass.async_block_till_done(wait_background_tasks=True)
     assert hass.states.get(entity_id).state == "unavailable"
 
     client.async_get_koopzegels.side_effect = None
-    freezer.tick(DEFAULT_UPDATE_INTERVAL)
+    freezer.tick(DEFAULT_UPDATE_INTERVAL + timedelta(seconds=5))
     async_fire_time_changed(hass)
-    await hass.async_block_till_done()
+    await hass.async_block_till_done(wait_background_tasks=True)
     assert hass.states.get(entity_id).state == "510.7"

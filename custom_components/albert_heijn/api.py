@@ -12,6 +12,8 @@ from typing import Any
 import aiohttp
 
 from .const import (
+    BASKET_OPERATION,
+    BASKET_QUERY,
     CLIENT_ID,
     DEFAULT_FULL_BOOKLET_TARGET,
     DEFAULT_HEADERS,
@@ -22,10 +24,18 @@ from .const import (
     KOOPZEGELS_QUERY,
     MEMBER_ID_OPERATION,
     MEMBER_ID_QUERY,
+    MILES_OPERATION,
+    MILES_QUERY,
+    PREMIUM_SAVINGS_OPERATION,
+    PREMIUM_SAVINGS_QUERY,
     RECEIPTS_OPERATION,
     RECEIPTS_PAGE_LIMIT,
     RECEIPTS_QUERY,
     REQUEST_TIMEOUT,
+    SAVING_GOAL_OPERATION,
+    SAVING_GOAL_QUERY,
+    SETTLEMENTS_OPERATION,
+    SETTLEMENTS_QUERY,
     TOKEN_EXPIRY_MARGIN,
     TOKEN_REFRESH_URL,
     TOKEN_URL,
@@ -66,6 +76,22 @@ class ReceiptSummary:
 
     transaction_id: str
     moment: str  # ISO datetime string as returned by the API
+    total: float
+
+
+@dataclass(frozen=True)
+class SavingGoalInfo:
+    """The koopzegels saving goal, when one is set."""
+
+    name: str | None
+    amount: float
+
+
+@dataclass(frozen=True)
+class BasketInfo:
+    """Summary of the current webshop basket."""
+
+    quantity: int
     total: float
 
 
@@ -212,6 +238,54 @@ class AhApiClient:
         """Fetch planned/known deliveries from order fulfillments."""
         data = await self._async_graphql(DELIVERIES_OPERATION, DELIVERIES_QUERY)
         return parse_deliveries(data)
+
+    async def async_get_miles(self) -> int:
+        """Fetch the Air Miles balance."""
+        data = await self._async_graphql(MILES_OPERATION, MILES_QUERY)
+        miles = data.get("milesBalance") or {}
+        if miles.get("balance") is None:
+            raise AhApiError(f"No miles balance in response (errorState={miles.get('errorState')})")
+        return int(miles["balance"])
+
+    async def async_get_premium_savings(self) -> float:
+        """Fetch the total amount saved through the Premium subscription."""
+        data = await self._async_graphql(PREMIUM_SAVINGS_OPERATION, PREMIUM_SAVINGS_QUERY)
+        try:
+            return _money_value(data["subscriptionPremiumSavingsV2"]["totalSavedAmount"])
+        except (KeyError, TypeError, ValueError) as err:
+            raise AhApiError(f"Unexpected premium savings response: {err!r}") from err
+
+    async def async_get_settlements_total(self) -> float:
+        """Fetch the total of open settlements (refunds owed)."""
+        data = await self._async_graphql(SETTLEMENTS_OPERATION, SETTLEMENTS_QUERY)
+        try:
+            return _money_value(data["settlementsTotal"]["totalAmount"])
+        except (KeyError, TypeError, ValueError) as err:
+            raise AhApiError(f"Unexpected settlements response: {err!r}") from err
+
+    async def async_get_saving_goal(self) -> SavingGoalInfo | None:
+        """Fetch the koopzegels saving goal; None when no goal is set."""
+        data = await self._async_graphql(SAVING_GOAL_OPERATION, SAVING_GOAL_QUERY)
+        goal = data.get("purchaseStampSavingGoal")
+        if not goal:
+            return None
+        try:
+            return SavingGoalInfo(name=goal.get("name"), amount=_money_value(goal["amount"]))
+        except (KeyError, TypeError, ValueError) as err:
+            raise AhApiError(f"Unexpected saving goal response: {err!r}") from err
+
+    async def async_get_basket(self) -> BasketInfo:
+        """Fetch a summary of the current webshop basket."""
+        data = await self._async_graphql(BASKET_OPERATION, BASKET_QUERY)
+        try:
+            summary = (data.get("basket") or {}).get("summary") or {}
+            total = ((summary.get("price") or {}).get("totalPrice") or {}).get("amount")
+            return BasketInfo(
+                quantity=int(summary.get("quantity") or 0),
+                total=float(total) if total is not None else 0.0,
+            )
+        except (TypeError, ValueError) as err:
+            raise AhApiError(f"Unexpected basket response: {err!r}") from err
 
     def _store_tokens(self, data: dict[str, Any]) -> None:
         try:

@@ -10,10 +10,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import dt as dt_util
 
 from .const import CONF_MEMBER_ID, DOMAIN
-from .coordinator import AhConfigEntry, AhCoordinator
+from .coordinator import AhConfigEntry, AhCoordinator, slot_start
 
 
 async def async_setup_entry(
@@ -30,6 +29,11 @@ async def async_setup_entry(
             AhLastReceiptSensor(coordinator, member_id),
             AhMonthSpendingSensor(coordinator, member_id),
             AhNextDeliverySensor(coordinator, member_id),
+            AhAirMilesSensor(coordinator, member_id),
+            AhPremiumSavingsSensor(coordinator, member_id),
+            AhSettlementsSensor(coordinator, member_id),
+            AhSavingGoalSensor(coordinator, member_id),
+            AhBasketSensor(coordinator, member_id),
         ]
     )
 
@@ -57,6 +61,7 @@ class AhKoopzegelsSensor(AhSensor):
     _attr_translation_key = "koopzegels"
     _attr_device_class = SensorDeviceClass.MONETARY
     _attr_native_unit_of_measurement = "EUR"
+    _attr_suggested_display_precision = 2
     _attr_state_class = SensorStateClass.TOTAL
 
     def __init__(self, coordinator: AhCoordinator, member_id: str) -> None:
@@ -90,6 +95,7 @@ class AhLastReceiptSensor(AhSensor):
     _attr_translation_key = "last_receipt"
     _attr_device_class = SensorDeviceClass.MONETARY
     _attr_native_unit_of_measurement = "EUR"
+    _attr_suggested_display_precision = 2
 
     @property
     def native_value(self) -> float | None:
@@ -112,6 +118,7 @@ class AhMonthSpendingSensor(AhSensor):
     _attr_translation_key = "month_spending"
     _attr_device_class = SensorDeviceClass.MONETARY
     _attr_native_unit_of_measurement = "EUR"
+    _attr_suggested_display_precision = 2
     _attr_state_class = SensorStateClass.TOTAL
 
     @property
@@ -135,13 +142,7 @@ class AhNextDeliverySensor(AhSensor):
     def native_value(self) -> datetime | None:
         """Slot start as a timezone-aware datetime."""
         delivery = self.coordinator.data.next_delivery
-        if delivery is None:
-            return None
-        try:
-            naive = datetime.fromisoformat(f"{delivery.date}T{delivery.start_time or '00:00'}")
-        except ValueError:
-            return None
-        return naive.replace(tzinfo=dt_util.get_default_time_zone())
+        return slot_start(delivery) if delivery else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -156,3 +157,90 @@ class AhNextDeliverySensor(AhSensor):
             "status": delivery.status,
             "order_id": delivery.order_id,
         }
+
+
+class AhAirMilesSensor(AhSensor):
+    """Air Miles balance."""
+
+    _attr_translation_key = "air_miles"
+    _attr_state_class = SensorStateClass.TOTAL
+
+    @property
+    def native_value(self) -> int | None:
+        """Miles balance, None when the account has no Air Miles link."""
+        return self.coordinator.data.miles
+
+
+class AhPremiumSavingsSensor(AhSensor):
+    """Total saved through the Premium subscription."""
+
+    _attr_translation_key = "premium_savings"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_suggested_display_precision = 2
+    _attr_state_class = SensorStateClass.TOTAL
+
+    @property
+    def native_value(self) -> float | None:
+        """Euro saved, None without a Premium subscription."""
+        return self.coordinator.data.premium_savings
+
+
+class AhSettlementsSensor(AhSensor):
+    """Total of open settlements (refunds owed)."""
+
+    _attr_translation_key = "settlements"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_suggested_display_precision = 2
+
+    @property
+    def native_value(self) -> float | None:
+        """Open settlement total in euro."""
+        return self.coordinator.data.settlements_total
+
+
+class AhSavingGoalSensor(AhSensor):
+    """The koopzegels saving goal, with progress attributes."""
+
+    _attr_translation_key = "saving_goal"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_suggested_display_precision = 2
+
+    @property
+    def native_value(self) -> float | None:
+        """Goal amount in euro, None when no goal is set."""
+        goal = self.coordinator.data.saving_goal
+        return goal.amount if goal else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Goal name and progress based on the current payout value."""
+        goal = self.coordinator.data.saving_goal
+        if goal is None:
+            return {}
+        payout = self.coordinator.data.koopzegels.payout
+        progress = round(100 * payout / goal.amount, 1) if goal.amount else None
+        return {"name": goal.name, "saved": payout, "progress_pct": progress}
+
+
+class AhBasketSensor(AhSensor):
+    """Total price of the current webshop basket."""
+
+    _attr_translation_key = "basket"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_suggested_display_precision = 2
+
+    @property
+    def native_value(self) -> float | None:
+        """Basket total in euro."""
+        basket = self.coordinator.data.basket
+        return basket.total if basket else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Number of items in the basket."""
+        basket = self.coordinator.data.basket
+        return {"quantity": basket.quantity} if basket else {}

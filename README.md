@@ -10,12 +10,18 @@ Albert Heijn digital **koopzegels** as a sensor.
 
 ## Sensors
 
-| Sensor | Meaning |
+| Entity | Meaning |
 | --- | --- |
 | **Koopzegels** | Euro payout value of your saved koopzegels |
 | **Last receipt** | Total of your most recent in-store receipt |
 | **Spent this month** | Sum of this calendar month's in-store receipts |
 | **Next delivery** | Timestamp of the next planned delivery slot |
+| **Deliveries** (calendar) | All delivery slots as calendar events |
+| **Air Miles** | Air Miles balance (if linked) |
+| **Premium savings** | Total saved through the Premium subscription |
+| **Open settlements** | Refunds owed to you |
+| **Saving goal** | Koopzegels saving goal, with progress attributes |
+| **Basket** | Current webshop basket total and item count |
 
 The koopzegels sensor carries attributes for the stamp counts:
 

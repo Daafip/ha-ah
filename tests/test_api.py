@@ -215,3 +215,76 @@ def test_parse_receipts_bad_shape_raises():
 def test_parse_deliveries_skips_slotless_and_tolerates_empty():
     assert parse_deliveries({"orderFulfillments": {"result": [{"orderId": 1, "delivery": {"slot": None}}]}}) == []
     assert parse_deliveries({"orderFulfillments": None}) == []
+
+
+async def test_get_miles(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(GRAPHQL_URL, payload={"data": {"milesBalance": {"balance": 1234, "errorState": None}}})
+        assert await client.async_get_miles() == 1234
+
+
+async def test_get_miles_error_state_raises(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(GRAPHQL_URL, payload={"data": {"milesBalance": {"balance": None, "errorState": "REAUTH"}}})
+        with pytest.raises(AhApiError):
+            await client.async_get_miles()
+
+
+async def test_get_saving_goal_none_when_unset(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(GRAPHQL_URL, payload={"data": {"purchaseStampSavingGoal": None}})
+        assert await client.async_get_saving_goal() is None
+
+
+async def test_get_saving_goal(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(
+            GRAPHQL_URL,
+            payload={"data": {"purchaseStampSavingGoal": {"name": "Vakantie", "amount": {"amount": 52.0}}}},
+        )
+        goal = await client.async_get_saving_goal()
+    assert goal.name == "Vakantie"
+    assert goal.amount == 52.0
+
+
+async def test_get_basket(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(
+            GRAPHQL_URL,
+            payload={"data": {"basket": {"summary": {"quantity": 12, "price": {"totalPrice": {"amount": 34.56}}}}}},
+        )
+        basket = await client.async_get_basket()
+    assert basket.quantity == 12
+    assert basket.total == 34.56
+
+
+async def test_get_basket_empty(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(GRAPHQL_URL, payload={"data": {"basket": {"summary": None}}})
+        basket = await client.async_get_basket()
+    assert basket.quantity == 0
+    assert basket.total == 0.0
+
+
+async def test_get_premium_savings_and_settlements(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(
+            GRAPHQL_URL, payload={"data": {"subscriptionPremiumSavingsV2": {"totalSavedAmount": {"amount": 56.78}}}}
+        )
+        mock.post(GRAPHQL_URL, payload={"data": {"settlementsTotal": {"totalAmount": {"amount": 3.21}}}})
+        assert await client.async_get_premium_savings() == 56.78
+        assert await client.async_get_settlements_total() == 3.21

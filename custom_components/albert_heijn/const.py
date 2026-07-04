@@ -90,6 +90,66 @@ query FetchPosReceipts($offset: Int!, $limit: Int!) {
 """
 RECEIPTS_PAGE_LIMIT: Final = 100
 
+MILES_OPERATION: Final = "HaMilesBalance"
+MILES_QUERY: Final = """\
+query HaMilesBalance {
+  milesBalance {
+    balance
+    errorState
+  }
+}
+"""
+
+PREMIUM_SAVINGS_OPERATION: Final = "HaPremiumSavings"
+PREMIUM_SAVINGS_QUERY: Final = """\
+query HaPremiumSavings {
+  subscriptionPremiumSavingsV2 {
+    totalSavedAmount {
+      amount
+    }
+  }
+}
+"""
+
+SETTLEMENTS_OPERATION: Final = "HaSettlementsTotal"
+SETTLEMENTS_QUERY: Final = """\
+query HaSettlementsTotal {
+  settlementsTotal {
+    totalAmount {
+      amount
+    }
+  }
+}
+"""
+
+SAVING_GOAL_OPERATION: Final = "HaSavingGoal"
+SAVING_GOAL_QUERY: Final = """\
+query HaSavingGoal {
+  purchaseStampSavingGoal {
+    name
+    amount {
+      amount
+    }
+  }
+}
+"""
+
+BASKET_OPERATION: Final = "HaBasket"
+BASKET_QUERY: Final = """\
+query HaBasket {
+  basket {
+    summary {
+      quantity
+      price {
+        totalPrice {
+          amount
+        }
+      }
+    }
+  }
+}
+"""
+
 DELIVERIES_OPERATION: Final = "HaOrderFulfillments"
 DELIVERIES_QUERY: Final = """\
 query HaOrderFulfillments {

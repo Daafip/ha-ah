@@ -1,6 +1,6 @@
 [project]
 name = "ha-albert-heijn"
-version = "0.3.1"
+version = "0.4.0"
 description = "Home Assistant custom integration exposing the Albert Heijn koopzegels balance"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }

@@ -4,7 +4,13 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock
 
-from custom_components.albert_heijn.api import DeliveryInfo, KoopzegelsData, ReceiptSummary
+from custom_components.albert_heijn.api import (
+    BasketInfo,
+    DeliveryInfo,
+    KoopzegelsData,
+    ReceiptSummary,
+    SavingGoalInfo,
+)
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -47,6 +53,13 @@ DELIVERIES = [
 ]
 
 
+MILES = 1234
+PREMIUM_SAVINGS = 56.78
+SETTLEMENTS_TOTAL = 3.21
+SAVING_GOAL = SavingGoalInfo(name="Vakantie", amount=52.0)
+BASKET = BasketInfo(quantity=12, total=34.56)
+
+
 def make_client() -> AsyncMock:
     """An AhApiClient mock with all data methods stubbed."""
     client = AsyncMock()
@@ -54,4 +67,9 @@ def make_client() -> AsyncMock:
     client.async_get_receipts.return_value = RECEIPTS
     client.async_get_deliveries.return_value = DELIVERIES
     client.async_get_member_id.return_value = MEMBER_ID
+    client.async_get_miles.return_value = MILES
+    client.async_get_premium_savings.return_value = PREMIUM_SAVINGS
+    client.async_get_settlements_total.return_value = SETTLEMENTS_TOTAL
+    client.async_get_saving_goal.return_value = SAVING_GOAL
+    client.async_get_basket.return_value = BASKET
     return client

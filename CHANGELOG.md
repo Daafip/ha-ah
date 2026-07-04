@@ -5,8 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-04
+
 ### Added
 
+- **Deliveries calendar**: all delivery slots as a calendar entity (past and planned).
+- Five new best-effort sensors: **Air Miles**, **Premium savings**, **Open settlements**,
+  **Saving goal** (with progress attributes), and **Basket** (total + item count).
+  All endpoints verified against the live API on 2026-07-04; anything that doesn't apply
+  to your account shows as *unknown* without affecting the other sensors.
+- Monetary sensors display with 2-decimal precision (the API can return sub-cent values).
+- Optional endpoints are now fetched concurrently, keeping the poll cycle fast.
 - README examples: Lovelace card, balance-change notification, and a store-zone
   automation with a persistent notification that clears on leaving.
 

@@ -41,6 +41,11 @@
     }
   },
   "entity": {
+    "calendar": {
+      "deliveries": {
+        "name": "Deliveries"
+      }
+    },
     "sensor": {
       "koopzegels": {
         "name": "Koopzegels"
@@ -53,6 +58,21 @@
       },
       "next_delivery": {
         "name": "Next delivery"
+      },
+      "air_miles": {
+        "name": "Air Miles"
+      },
+      "premium_savings": {
+        "name": "Premium savings"
+      },
+      "settlements": {
+        "name": "Open settlements"
+      },
+      "saving_goal": {
+        "name": "Saving goal"
+      },
+      "basket": {
+        "name": "Basket"
       }
     }
   }
