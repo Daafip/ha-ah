@@ -130,77 +130,50 @@ dismiss target exactly the notification that enter created:
 alias: "AH: koopzegels-herinnering in de winkel"
 description: Persistent notification while at an AH store, removed on leaving.
 triggers:
-  # The zone trigger takes exactly ONE zone per trigger — add a pair of
-  # triggers per store and reuse the same ids so the actions don't change.
   - trigger: zone
-    entity_id: person.david
-    zone: zone.ah_centrum
-    event: enter
-    id: enter
-  - trigger: zone
-    entity_id: person.david
+    entity_id: person.john_doe
     zone: zone.ah_xl
     event: enter
     id: enter
   - trigger: zone
-    entity_id: person.david
-    zone: zone.ah_centrum
-    event: leave
-    id: leave
+    entity_id: person.john_doe
+    zone: zone.ah_2
+    event: enter
+    id: enter
   - trigger: zone
-    entity_id: person.david
-    zone: zone.ah_xl
-    event: leave
-    id: leave
+    entity_id: person.john_doe
+    zone: zone.ah_3
+    event: enter
+    id: enter
+conditions: []
 actions:
   - choose:
       - conditions:
           - condition: trigger
             id: enter
+          - condition: template
+            value_template: >-
+              {{ state_attr('sensor.albert_heijn_koopzegels', 'full_booklets') >
+              0 }}
         sequence:
-          - action: persistent_notification.create
+          - action: notify.mobile_app_<phone>
             data:
-              notification_id: ah_koopzegels_store
-              title: "🛒 Albert Heijn"
-              message: >-
-                {% set k = 'sensor.albert_heijn_koopzegels' %}
-                Koopzegelsaldo: **€ {{ states(k) }}**
+              title: 🛒 Albert Heijn
+              message: >
+                {% set k = 'sensor.albert_heijn_koopzegels' %} Koopzegelsaldo: €
+                {{ states(k) }}
+                {{ state_attr(k, 'full_booklets')}} boekje(s) zijn vol. 
 
-                Boekje: {{ state_attr(k, 'booklet_stamps') }}/{{ state_attr(k, 'full_booklet_target') }}
-                zegels (nog {{ state_attr(k, 'stamps_until_next_booklet') }} tot een vol boekje).
-      - conditions:
-          - condition: trigger
-            id: leave
-        sequence:
-          - action: persistent_notification.dismiss
-            data:
-              notification_id: ah_koopzegels_store
+                Boekje: {{ state_attr(k, 'booklet_stamps') }}/{{ state_attr(k,
+                'full_booklet_target') }} zegels (nog {{ state_attr(k,
+                'stamps_until_next_booklet') }} tot volgende volle boekje).
+            enabled: true
 mode: restart
+
 ```
-
-`mode: restart` keeps the behaviour sane when you hop between two adjacent store zones:
-the latest enter/leave always wins.
-
 To get it on your phone instead of the HA dashboard, swap both sequences for
-`notify.mobile_app_<phone>` — note there is no `.create`/`.dismiss` suffix there;
-creating and clearing goes through the message payload, matched by `tag`:
+`notify.mobile_app_<phone>` 
 
-```yaml
-# enter:
-- action: notify.mobile_app_pixel_10
-  data:
-    title: "🛒 Albert Heijn"
-    message: "Koopzegelsaldo: € {{ states('sensor.albert_heijn_koopzegels') }}"
-    data:
-      tag: ah_koopzegels_store
-      sticky: true  # Android: survives a swipe while you're in the store
-# leave:
-- action: notify.mobile_app_pixel_10
-  data:
-    message: clear_notification
-    data:
-      tag: ah_koopzegels_store
-```
 
 ## Development
 
