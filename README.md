@@ -179,9 +179,28 @@ mode: restart
 ```
 
 `mode: restart` keeps the behaviour sane when you hop between two adjacent store zones:
-the latest enter/leave always wins. Swap `persistent_notification` for
-`notify.mobile_app_<phone>` with `tag:`/`clear_notification` if you want it on your
-phone instead of the HA dashboard.
+the latest enter/leave always wins.
+
+To get it on your phone instead of the HA dashboard, swap both sequences for
+`notify.mobile_app_<phone>` — note there is no `.create`/`.dismiss` suffix there;
+creating and clearing goes through the message payload, matched by `tag`:
+
+```yaml
+# enter:
+- action: notify.mobile_app_pixel_10
+  data:
+    title: "🛒 Albert Heijn"
+    message: "Koopzegelsaldo: € {{ states('sensor.albert_heijn_koopzegels') }}"
+    data:
+      tag: ah_koopzegels_store
+      sticky: true  # Android: survives a swipe while you're in the store
+# leave:
+- action: notify.mobile_app_pixel_10
+  data:
+    message: clear_notification
+    data:
+      tag: ah_koopzegels_store
+```
 
 ## Development
 
