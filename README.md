@@ -130,18 +130,26 @@ dismiss target exactly the notification that enter created:
 alias: "AH: koopzegels-herinnering in de winkel"
 description: Persistent notification while at an AH store, removed on leaving.
 triggers:
+  # The zone trigger takes exactly ONE zone per trigger — add a pair of
+  # triggers per store and reuse the same ids so the actions don't change.
   - trigger: zone
     entity_id: person.david
-    zone:
-      - zone.ah_centrum
-      - zone.ah_xl
+    zone: zone.ah_centrum
     event: enter
     id: enter
   - trigger: zone
     entity_id: person.david
-    zone:
-      - zone.ah_centrum
-      - zone.ah_xl
+    zone: zone.ah_xl
+    event: enter
+    id: enter
+  - trigger: zone
+    entity_id: person.david
+    zone: zone.ah_centrum
+    event: leave
+    id: leave
+  - trigger: zone
+    entity_id: person.david
+    zone: zone.ah_xl
     event: leave
     id: leave
 actions:
