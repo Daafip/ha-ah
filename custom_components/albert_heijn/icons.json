@@ -5,6 +5,11 @@
         "default": "mdi:truck-delivery"
       }
     },
+    "todo": {
+      "shopping_list": {
+        "default": "mdi:cart-outline"
+      }
+    },
     "sensor": {
       "koopzegels": {
         "default": "mdi:postage-stamp"

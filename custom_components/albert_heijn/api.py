@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import Callable
@@ -36,6 +37,7 @@ from .const import (
     SAVING_GOAL_QUERY,
     SETTLEMENTS_OPERATION,
     SETTLEMENTS_QUERY,
+    SHOPPINGLIST_ITEMS_URL,
     TOKEN_EXPIRY_MARGIN,
     TOKEN_REFRESH_URL,
     TOKEN_URL,
@@ -104,6 +106,20 @@ class DeliveryInfo:
     start_time: str | None  # HH:MM
     end_time: str | None
     status: str | None
+
+
+@dataclass(frozen=True)
+class AhListItem:
+    """One line on the AH shopping list ("Mijn lijst").
+
+    The description doubles as the item's identity: the API merges writes by
+    description (free text) or product, and keeps descriptions unique.
+    """
+
+    description: str
+    checked: bool
+    product_id: int | None = None
+    quantity: int = 1
 
 
 def _money_value(value: Any) -> float:
@@ -175,6 +191,36 @@ def parse_koopzegels(data: dict[str, Any]) -> KoopzegelsData:
         )
     except (KeyError, TypeError, ValueError) as err:
         raise AhApiError(f"Unexpected koopzegels response: {err!r}") from err
+
+
+def parse_list_items(data: Any) -> list[AhListItem]:
+    """Map the shoppinglist v2 GET payload onto :class:`AhListItem` items."""
+    try:
+        return [
+            AhListItem(
+                description=str(item.get("description") or ""),
+                checked=bool(item.get("strikedthrough")),
+                product_id=item.get("productId"),
+                quantity=int(item.get("quantity") or 1),
+            )
+            for item in (data or {}).get("items") or []
+        ]
+    except (AttributeError, KeyError, TypeError, ValueError) as err:
+        raise AhApiError(f"Unexpected list items response: {err!r}") from err
+
+
+def _list_write_entry(item: AhListItem, *, quantity: int | None = None, checked: bool | None = None) -> dict[str, Any]:
+    """An item in the v2 *write* shape (which differs from the read shape)."""
+    entry: dict[str, Any] = {
+        "description": item.description,
+        "quantity": item.quantity if quantity is None else quantity,
+        "type": "SHOPPABLE",
+        "originCode": "PRD",
+        "strikeThrough": item.checked if checked is None else checked,
+    }
+    if item.product_id is not None:
+        entry["productId"] = item.product_id
+    return entry
 
 
 class AhApiClient:
@@ -287,6 +333,29 @@ class AhApiClient:
         except (TypeError, ValueError) as err:
             raise AhApiError(f"Unexpected basket response: {err!r}") from err
 
+    async def async_get_list_items(self) -> list[AhListItem]:
+        """Fetch the items on the shopping list ("Mijn lijst")."""
+        data = await self._async_rest("GET", SHOPPINGLIST_ITEMS_URL)
+        return parse_list_items(data)
+
+    async def async_add_free_text_item(self, description: str, quantity: int = 1) -> Any:
+        """Add a free-text (unlinked) item to the shopping list; returns the raw response.
+
+        The API merges by description, so adding an existing item is a no-op.
+        """
+        # No productId makes it a free-text note; type and originCode are mandatory.
+        item = AhListItem(description=description, checked=False, quantity=quantity)
+        return await self._async_rest("PATCH", SHOPPINGLIST_ITEMS_URL, {"items": [_list_write_entry(item)]})
+
+    async def async_set_item_checked(self, item: AhListItem, checked: bool) -> None:
+        """Check or uncheck one shopping list item (a merge on the same PATCH)."""
+        await self._async_rest("PATCH", SHOPPINGLIST_ITEMS_URL, {"items": [_list_write_entry(item, checked=checked)]})
+
+    async def async_delete_list_items(self, items: list[AhListItem]) -> None:
+        """Delete items from the shopping list: a merge with quantity 0 removes them."""
+        payload = {"items": [_list_write_entry(item, quantity=0) for item in items]}
+        await self._async_rest("PATCH", SHOPPINGLIST_ITEMS_URL, payload)
+
     def _store_tokens(self, data: dict[str, Any]) -> None:
         try:
             access_token = data["access_token"]
@@ -314,14 +383,18 @@ class AhApiClient:
         return await self._async_json(response)
 
     async def _async_graphql(
-        self, operation: str, query: str, variables: dict[str, Any] | None = None
+        self,
+        operation: str,
+        query: str,
+        variables: dict[str, Any] | None = None,
+        operation_type: str = "query",
     ) -> dict[str, Any]:
         await self._async_ensure_token()
         headers = {
             **DEFAULT_HEADERS,
             "Authorization": f"Bearer {self._access_token}",
             "x-apollo-operation-name": operation,
-            "x-apollo-operation-type": "query",
+            "x-apollo-operation-type": operation_type,
         }
         payload = {"operationName": operation, "query": query, "variables": variables or {}}
         _LOGGER.debug("GraphQL request: %s", operation)
@@ -336,6 +409,34 @@ class AhApiClient:
             raise AhApiError("GraphQL response contains no data")
         return data
 
+    async def _async_rest(self, method: str, url: str, payload: dict[str, Any] | None = None) -> Any:
+        """An authenticated REST call; returns the parsed JSON body (None when empty)."""
+        await self._async_ensure_token()
+        headers = {**DEFAULT_HEADERS, "Authorization": f"Bearer {self._access_token}"}
+        _LOGGER.debug("REST request: %s %s", method, url)
+        try:
+            async with asyncio.timeout(REQUEST_TIMEOUT):
+                response = await self._session.request(method, url, json=payload, headers=headers)
+        except TimeoutError as err:
+            raise AhApiError(f"Timeout talking to {url}") from err
+        except aiohttp.ClientError as err:
+            raise AhApiError(f"Error talking to {url}: {err!r}") from err
+        if response.status in (401, 403):
+            raise AhAuthError(f"{method} {url} rejected with HTTP {response.status}")
+        try:
+            async with asyncio.timeout(REQUEST_TIMEOUT):
+                body = await response.read()
+        except (TimeoutError, aiohttp.ClientError) as err:
+            raise AhApiError(f"Invalid response from {url}: {err!r}") from err
+        if response.status >= 400:
+            detail = f": {body.decode('utf-8', errors='replace')[:300]}" if body else ""
+            raise AhApiError(f"HTTP {response.status} from {url}{detail}")
+        # PATCH endpoints may answer 204/empty; only parse what is there.
+        try:
+            return json.loads(body) if body else None
+        except ValueError as err:
+            raise AhApiError(f"Invalid response from {url}: {err!r}") from err
+
     async def _async_post(self, url: str, payload: dict[str, Any], headers: dict[str, str]) -> aiohttp.ClientResponse:
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):
@@ -346,10 +447,17 @@ class AhApiClient:
             raise AhApiError(f"Error talking to {url}: {err!r}") from err
 
     async def _async_json(self, response: aiohttp.ClientResponse) -> Any:
-        if response.status >= 400:
-            raise AhApiError(f"HTTP {response.status} from {response.url}")
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):
-                return await response.json(content_type=None)
-        except (TimeoutError, aiohttp.ClientError, ValueError) as err:
+                body = await response.read()
+        except (TimeoutError, aiohttp.ClientError) as err:
+            raise AhApiError(f"Invalid response from {response.url}: {err!r}") from err
+        if response.status >= 400:
+            # The AH GraphQL endpoint answers schema errors with HTTP 400; the
+            # body names the offending field, so include it.
+            detail = f": {body.decode('utf-8', errors='replace')[:300]}" if body else ""
+            raise AhApiError(f"HTTP {response.status} from {response.url}{detail}")
+        try:
+            return json.loads(body)
+        except ValueError as err:
             raise AhApiError(f"Invalid response from {response.url}: {err!r}") from err

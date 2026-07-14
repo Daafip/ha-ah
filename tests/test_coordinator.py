@@ -8,12 +8,13 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.albert_heijn.api import AhApiError, AhAuthError
 from custom_components.albert_heijn.const import DOMAIN
-from custom_components.albert_heijn.coordinator import AhCoordinator
+from custom_components.albert_heijn.coordinator import AhCoordinator, AhListCoordinator
 
 from .const import (
     BASKET,
     FROZEN_NOW,
     KOOPZEGELS_DATA,
+    LIST_ITEMS,
     MILES,
     PREMIUM_SAVINGS,
     SAVING_GOAL,
@@ -26,6 +27,12 @@ def _make_coordinator(hass: HomeAssistant, client) -> AhCoordinator:
     entry = MockConfigEntry(domain=DOMAIN)
     entry.add_to_hass(hass)
     return AhCoordinator(hass, entry, client)
+
+
+def _make_list_coordinator(hass: HomeAssistant, client) -> AhListCoordinator:
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    return AhListCoordinator(hass, entry, client)
 
 
 async def test_update_success(hass: HomeAssistant, freezer):
@@ -94,5 +101,58 @@ async def test_api_error_marks_update_failed(hass: HomeAssistant):
     client = make_client()
     client.async_get_koopzegels.side_effect = AhApiError("boom")
     coordinator = _make_coordinator(hass, client)
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+
+async def test_list_update_success(hass: HomeAssistant):
+    client = make_client()
+    coordinator = _make_list_coordinator(hass, client)
+    items = await coordinator._async_update_data()
+
+    assert items == LIST_ITEMS
+    client.async_get_list_items.assert_awaited_once_with()
+
+
+async def test_list_previous_items_set_after_second_refresh(hass: HomeAssistant):
+    coordinator = _make_list_coordinator(hass, make_client())
+
+    await coordinator.async_refresh()
+    assert coordinator.previous_items is None  # first load: no diff base yet
+    assert coordinator.data == LIST_ITEMS
+
+    await coordinator.async_refresh()
+    assert coordinator.previous_items == LIST_ITEMS
+
+
+async def test_list_previous_items_reset_after_failed_refresh(hass: HomeAssistant):
+    client = make_client()
+    coordinator = _make_list_coordinator(hass, client)
+    await coordinator.async_refresh()
+    await coordinator.async_refresh()
+    assert coordinator.previous_items == LIST_ITEMS
+
+    client.async_get_list_items.side_effect = AhApiError("down")
+    await coordinator.async_refresh()
+    assert coordinator.last_update_success is False
+
+    # After a gap the diff base is stale; treat the recovery like a first load.
+    client.async_get_list_items.side_effect = None
+    await coordinator.async_refresh()
+    assert coordinator.previous_items is None
+
+
+async def test_list_auth_error_triggers_reauth(hass: HomeAssistant):
+    client = make_client()
+    client.async_get_list_items.side_effect = AhAuthError("expired")
+    coordinator = _make_list_coordinator(hass, client)
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coordinator._async_update_data()
+
+
+async def test_list_api_error_marks_update_failed(hass: HomeAssistant):
+    client = make_client()
+    client.async_get_list_items.side_effect = AhApiError("boom")
+    coordinator = _make_list_coordinator(hass, client)
     with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()

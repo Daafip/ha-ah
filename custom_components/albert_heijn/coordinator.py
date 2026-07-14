@@ -17,13 +17,20 @@ from .api import (
     AhApiClient,
     AhApiError,
     AhAuthError,
+    AhListItem,
     BasketInfo,
     DeliveryInfo,
     KoopzegelsData,
     ReceiptSummary,
     SavingGoalInfo,
 )
-from .const import CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_HOURS, DOMAIN
+from .const import (
+    CONF_LIST_SCAN_INTERVAL,
+    CONF_UPDATE_INTERVAL,
+    DEFAULT_LIST_SCAN_INTERVAL,
+    DEFAULT_UPDATE_INTERVAL_HOURS,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +61,11 @@ class AhData:
 def update_interval_from_options(entry: AhConfigEntry) -> timedelta:
     """The configured poll interval, falling back to the 6 h default."""
     return timedelta(hours=entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_HOURS))
+
+
+def list_interval_from_options(entry: AhConfigEntry) -> timedelta:
+    """The configured shopping list poll interval, falling back to the 120 s default."""
+    return timedelta(seconds=entry.options.get(CONF_LIST_SCAN_INTERVAL, DEFAULT_LIST_SCAN_INTERVAL))
 
 
 def slot_start(delivery: DeliveryInfo) -> datetime | None:
@@ -94,6 +106,8 @@ class AhCoordinator(DataUpdateCoordinator[AhData]):
             update_interval=update_interval_from_options(entry),
         )
         self.client = client
+        # Set at setup when the shopping list option is enabled; None otherwise.
+        self.list_coordinator: AhListCoordinator | None = None
 
     async def _async_update_data(self) -> AhData:
         # Koopzegels is the primary sensor: its failures decide availability
@@ -161,3 +175,32 @@ class AhCoordinator(DataUpdateCoordinator[AhData]):
         if isinstance(result, BaseException):
             raise result
         return result
+
+
+class AhListCoordinator(DataUpdateCoordinator[list[AhListItem]]):
+    """Polls the AH shopping list ("Mijn lijst") on its own, faster interval."""
+
+    config_entry: AhConfigEntry
+
+    def __init__(self, hass: HomeAssistant, entry: AhConfigEntry, client: AhApiClient) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            config_entry=entry,
+            name=f"{DOMAIN}_list",
+            update_interval=list_interval_from_options(entry),
+        )
+        self.client = client
+        # Snapshot of the refresh before the current one, so diff logic can
+        # tell "deleted upstream" from "first load". None until the second
+        # successful refresh.
+        self.previous_items: list[AhListItem] | None = None
+
+    async def _async_update_data(self) -> list[AhListItem]:
+        self.previous_items = self.data if self.last_update_success else None
+        try:
+            return await self.client.async_get_list_items()
+        except AhAuthError as err:
+            raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
+        except AhApiError as err:
+            raise UpdateFailed(f"Error fetching shopping list: {err}") from err

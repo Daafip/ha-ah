@@ -32,10 +32,14 @@
       "init": {
         "title": "Albert Heijn-opties",
         "data": {
-          "update_interval": "Bijwerkinterval (uren)"
+          "update_interval": "Bijwerkinterval (uren)",
+          "list_enabled": "Boodschappenlijst synchroniseren",
+          "list_scan_interval": "Scaninterval boodschappenlijst (seconden)"
         },
         "data_description": {
-          "update_interval": "Hoe vaak het koopzegelsaldo wordt opgehaald. Het saldo verandert alleen als je boodschappen doet, dus houd dit bescheiden — de API is onofficieel."
+          "update_interval": "Hoe vaak het koopzegelsaldo wordt opgehaald. Het saldo verandert alleen als je boodschappen doet, dus houd dit bescheiden — de API is onofficieel.",
+          "list_enabled": "Toon de AH-boodschappenlijst (\"Mijn lijst\") als todo-entiteit die gesynchroniseerd kan worden met de Home Assistant-boodschappenlijst.",
+          "list_scan_interval": "Hoe vaak de boodschappenlijst wordt gecontroleerd op wijzigingen uit de AH-app. Alleen gebruikt zolang de synchronisatie aanstaat."
         }
       }
     }
@@ -44,6 +48,11 @@
     "calendar": {
       "deliveries": {
         "name": "Bezorgingen"
+      }
+    },
+    "todo": {
+      "shopping_list": {
+        "name": "Boodschappenlijst"
       }
     },
     "sensor": {

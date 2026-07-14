@@ -1,0 +1,38 @@
+{
+  "id": "7bbc1e0a-0000-0000-0000-000000000000",
+  "items": [
+    {
+      "listItemId": 0,
+      "strikedthrough": false,
+      "quantity": 1,
+      "description": "luiers",
+      "type": "SHOPPABLE",
+      "originCode": "TXT",
+      "position": 1,
+      "sorting": {
+        "position": 1
+      },
+      "vagueTermDetails": {
+        "searchTermValue": "luiers",
+        "bonus": false
+      }
+    },
+    {
+      "listItemId": 987654,
+      "strikedthrough": true,
+      "quantity": 2,
+      "productId": 12345,
+      "description": "melk",
+      "type": "SHOPPABLE",
+      "originCode": "PRD",
+      "position": 2,
+      "sorting": {
+        "position": 2
+      }
+    }
+  ],
+  "dateLastSynced": "2026-07-14T11:21:00",
+  "dateLastSyncedMillis": 1784020860890,
+  "activeSorting": "E",
+  "storeNumber": 0
+}

@@ -12,12 +12,15 @@ from custom_components.albert_heijn.api import (
     AhApiClient,
     AhApiError,
     AhAuthError,
+    AhListItem,
     parse_deliveries,
     parse_koopzegels,
+    parse_list_items,
     parse_receipts,
 )
 from custom_components.albert_heijn.const import (
     GRAPHQL_URL,
+    SHOPPINGLIST_ITEMS_URL,
     TOKEN_REFRESH_URL,
     TOKEN_URL,
 )
@@ -25,6 +28,7 @@ from custom_components.albert_heijn.const import (
 from .const import (
     DELIVERIES_RESPONSE,
     KOOPZEGELS_RESPONSE,
+    LIST_ITEMS_RESPONSE,
     MEMBER_RESPONSE,
     RECEIPTS_RESPONSE,
     REFRESH_TOKEN,
@@ -288,3 +292,118 @@ async def test_get_premium_savings_and_settlements(session):
         mock.post(GRAPHQL_URL, payload={"data": {"settlementsTotal": {"totalAmount": {"amount": 3.21}}}})
         assert await client.async_get_premium_savings() == 56.78
         assert await client.async_get_settlements_total() == 3.21
+
+
+async def test_get_list_items(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.get(SHOPPINGLIST_ITEMS_URL, payload=LIST_ITEMS_RESPONSE)
+        items = await client.async_get_list_items()
+        request = mock.requests[("GET", URL(SHOPPINGLIST_ITEMS_URL))][0]
+        headers = request.kwargs["headers"]
+    assert len(items) == 2
+    assert items[0].description == "luiers"
+    assert items[0].checked is False
+    assert items[0].product_id is None
+    assert items[1].checked is True
+    assert items[1].product_id == 12345
+    assert items[1].quantity == 2
+    assert headers["Authorization"].startswith("Bearer ")
+    assert headers["X-Application"] == "AHWEBSHOP"
+
+
+async def test_rest_401_raises_auth_error(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.get(SHOPPINGLIST_ITEMS_URL, status=401)
+        with pytest.raises(AhAuthError):
+            await client.async_get_list_items()
+
+
+async def test_rest_500_raises_api_error(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.get(SHOPPINGLIST_ITEMS_URL, status=500)
+        with pytest.raises(AhApiError):
+            await client.async_get_list_items()
+
+
+def test_parse_list_items_edge_cases():
+    assert parse_list_items(None) == []
+    assert parse_list_items({}) == []
+    assert parse_list_items({"items": None}) == []
+    # Missing description degrades to an empty string; free text has no ids.
+    items = parse_list_items({"items": [{"listItemId": 0, "quantity": None}]})
+    assert items[0].description == ""
+    assert items[0].checked is False
+    assert items[0].product_id is None
+    assert items[0].quantity == 1
+
+
+def test_parse_list_items_bad_shape_raises():
+    with pytest.raises(AhApiError):
+        parse_list_items({"items": [{"quantity": "veel"}]})
+    with pytest.raises(AhApiError):
+        parse_list_items({"items": ["geen dict"]})
+
+
+async def test_add_free_text_item_payload(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.patch(SHOPPINGLIST_ITEMS_URL, status=200, payload={})
+        await client.async_add_free_text_item("luiers")
+        request = mock.requests[("PATCH", URL(SHOPPINGLIST_ITEMS_URL))][0]
+    (item,) = request.kwargs["json"]["items"]
+    # No productId key at all: that is what makes it a free-text note. The
+    # write shape differs from the read shape (originCode PRD, strikeThrough).
+    assert "productId" not in item
+    assert item == {
+        "description": "luiers",
+        "quantity": 1,
+        "type": "SHOPPABLE",
+        "originCode": "PRD",
+        "strikeThrough": False,
+    }
+
+
+async def test_set_item_checked_payload(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    product = AhListItem(description="melk", checked=False, product_id=12345, quantity=2)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.patch(SHOPPINGLIST_ITEMS_URL, status=204)  # empty body must be fine
+        await client.async_set_item_checked(product, True)
+        request = mock.requests[("PATCH", URL(SHOPPINGLIST_ITEMS_URL))][0]
+    (item,) = request.kwargs["json"]["items"]
+    # Quantity and productId ride along so the merge cannot clobber them.
+    assert item == {
+        "description": "melk",
+        "quantity": 2,
+        "type": "SHOPPABLE",
+        "originCode": "PRD",
+        "strikeThrough": True,
+        "productId": 12345,
+    }
+
+
+async def test_delete_list_items_batches_one_patch(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    items = [
+        AhListItem(description="luiers", checked=False),
+        AhListItem(description="melk", checked=True, product_id=12345, quantity=2),
+    ]
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.patch(SHOPPINGLIST_ITEMS_URL, status=200, payload={})
+        await client.async_delete_list_items(items)
+        requests = mock.requests[("PATCH", URL(SHOPPINGLIST_ITEMS_URL))]
+    assert len(requests) == 1  # one batched call
+    entries = requests[0].kwargs["json"]["items"]
+    # Deletion is a merge with quantity 0.
+    assert [entry["quantity"] for entry in entries] == [0, 0]
+    assert [entry["description"] for entry in entries] == ["luiers", "melk"]
+    assert entries[1]["productId"] == 12345

@@ -32,10 +32,14 @@
       "init": {
         "title": "Albert Heijn options",
         "data": {
-          "update_interval": "Update interval (hours)"
+          "update_interval": "Update interval (hours)",
+          "list_enabled": "Sync shopping list",
+          "list_scan_interval": "Shopping list scan interval (seconds)"
         },
         "data_description": {
-          "update_interval": "How often to fetch the koopzegels balance. The balance only changes when you shop, so keep this modest — the API is unofficial."
+          "update_interval": "How often to fetch the koopzegels balance. The balance only changes when you shop, so keep this modest — the API is unofficial.",
+          "list_enabled": "Expose the AH shopping list (\"Mijn lijst\") as a todo entity that can be synced with the Home Assistant shopping list.",
+          "list_scan_interval": "How often to poll the shopping list for changes made in the AH app. Only used while the sync is enabled."
         }
       }
     }
@@ -44,6 +48,11 @@
     "calendar": {
       "deliveries": {
         "name": "Deliveries"
+      }
+    },
+    "todo": {
+      "shopping_list": {
+        "name": "Shopping list"
       }
     },
     "sensor": {

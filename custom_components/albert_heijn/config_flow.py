@@ -11,18 +11,28 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.selector import NumberSelector, NumberSelectorConfig, NumberSelectorMode
+from homeassistant.helpers.selector import (
+    BooleanSelector,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+)
 
 from .api import AhApiClient, AhApiError, AhAuthError
 from .const import (
     AUTHORIZE_URL,
     CONF_CODE,
+    CONF_LIST_ENABLED,
+    CONF_LIST_SCAN_INTERVAL,
     CONF_MEMBER_ID,
     CONF_REFRESH_TOKEN,
     CONF_UPDATE_INTERVAL,
+    DEFAULT_LIST_SCAN_INTERVAL,
     DEFAULT_UPDATE_INTERVAL_HOURS,
     DOMAIN,
+    MAX_LIST_SCAN_INTERVAL,
     MAX_UPDATE_INTERVAL_HOURS,
+    MIN_LIST_SCAN_INTERVAL,
     MIN_UPDATE_INTERVAL_HOURS,
 )
 
@@ -115,24 +125,49 @@ class AhConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class AhOptionsFlow(OptionsFlow):
-    """Options: how often to poll the AH API."""
+    """Options: poll intervals and the opt-in shopping list sync."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Show and store the poll-interval option."""
+        """Show and store the options."""
         if user_input is not None:
-            return self.async_create_entry(data={CONF_UPDATE_INTERVAL: int(user_input[CONF_UPDATE_INTERVAL])})
+            return self.async_create_entry(
+                data={
+                    CONF_UPDATE_INTERVAL: int(user_input[CONF_UPDATE_INTERVAL]),
+                    CONF_LIST_ENABLED: bool(user_input[CONF_LIST_ENABLED]),
+                    CONF_LIST_SCAN_INTERVAL: int(user_input[CONF_LIST_SCAN_INTERVAL]),
+                }
+            )
 
-        current = self.config_entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_HOURS)
+        options = self.config_entry.options
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_UPDATE_INTERVAL, default=current): NumberSelector(
+                    vol.Required(
+                        CONF_UPDATE_INTERVAL,
+                        default=options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_HOURS),
+                    ): NumberSelector(
                         NumberSelectorConfig(
                             min=MIN_UPDATE_INTERVAL_HOURS,
                             max=MAX_UPDATE_INTERVAL_HOURS,
                             step=1,
                             unit_of_measurement="h",
+                            mode=NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_LIST_ENABLED,
+                        default=options.get(CONF_LIST_ENABLED, False),
+                    ): BooleanSelector(),
+                    vol.Required(
+                        CONF_LIST_SCAN_INTERVAL,
+                        default=options.get(CONF_LIST_SCAN_INTERVAL, DEFAULT_LIST_SCAN_INTERVAL),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=MIN_LIST_SCAN_INTERVAL,
+                            max=MAX_LIST_SCAN_INTERVAL,
+                            step=1,
+                            unit_of_measurement="s",
                             mode=NumberSelectorMode.BOX,
                         )
                     ),

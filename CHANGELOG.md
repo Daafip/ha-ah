@@ -5,6 +5,34 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-14
+
+### Added
+
+- **Shopping list** ("Mijn lijst") as a todo entity with add/check/delete support.
+  Opt-in via a new *Sync shopping list* toggle in the entry's Configure dialog
+  (default off: existing installs get no new polling or entities on upgrade).
+  Enabling/disabling takes effect without a restart.
+- Items added from HA land in the AH app as free-text lines; checking an item in
+  either place can be mirrored to the other. Renaming is not supported by the API.
+- Separate poll interval for the list (default 120 s, min 60 s), configurable in
+  the same dialog. The 6 h koopzegels interval is untouched.
+- README: loop-safe two-way sync automation between `todo.shopping_list` and the
+  AH list (compare-before-write, no resurrection of deleted items).
+- Verification script `scripts/discover_list.py`: exercises the full
+  add/check/uncheck/delete cycle against a real account with a self-cleaning
+  test item.
+- Diagnostics include the list items (descriptions unredacted on purpose — they
+  are what needs debugging; account identifiers stay redacted).
+
+### Notes
+
+- All four list operations were live-verified on 2026-07-14. The shopping list
+  turned out to be a REST-only resource (`shoppinglist/v2/items`): GraphQL's
+  `favoriteListV2` cannot see free-text items, everything is a PATCH merge
+  keyed on the item description, and quantity 0 deletes. Details in the
+  shopping list section of `const.py`.
+
 ## [0.4.0] - 2026-07-04
 
 ### Added

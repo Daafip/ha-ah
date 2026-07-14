@@ -27,11 +27,16 @@ CONF_CODE: Final = "code"
 CONF_REFRESH_TOKEN: Final = "refresh_token"
 CONF_MEMBER_ID: Final = "member_id"
 CONF_UPDATE_INTERVAL: Final = "update_interval"  # hours, options flow
+CONF_LIST_ENABLED: Final = "list_enabled"  # options flow, opt-in
+CONF_LIST_SCAN_INTERVAL: Final = "list_scan_interval"  # seconds, options flow
 
 DEFAULT_UPDATE_INTERVAL_HOURS: Final = 6
 MIN_UPDATE_INTERVAL_HOURS: Final = 1
 MAX_UPDATE_INTERVAL_HOURS: Final = 24
 DEFAULT_UPDATE_INTERVAL: Final = timedelta(hours=DEFAULT_UPDATE_INTERVAL_HOURS)
+DEFAULT_LIST_SCAN_INTERVAL: Final = 120  # seconds
+MIN_LIST_SCAN_INTERVAL: Final = 60
+MAX_LIST_SCAN_INTERVAL: Final = 3600
 TOKEN_EXPIRY_MARGIN: Final = 60  # seconds before expiry at which we refresh proactively
 REQUEST_TIMEOUT: Final = 30  # seconds
 
@@ -169,3 +174,22 @@ query HaOrderFulfillments {
   }
 }
 """
+
+# --- Shopping list ("Mijn lijst") ---
+# CONFIRMED against the live API on 2026-07-14 (scripts/discover_list.py):
+# - The shopping list is one per-account resource in the shoppinglist v2
+#   service. It is NOT a lists-v3 list (those are favorites), and GraphQL's
+#   favoriteListV2 cannot see free-text items at all — REST is the only path.
+# - READ: GET SHOPPINGLIST_ITEMS_URL -> {id, items: [...]}; item fields:
+#   listItemId (0 for free text), description, quantity, strikedthrough,
+#   type, originCode ("TXT" on read), position.
+# - WRITE: everything is PATCH on the same URL with {"items": [...]} in the
+#   *write* shape {description, quantity, type: "SHOPPABLE", originCode:
+#   "PRD", strikeThrough: bool, productId?}. The server merges by
+#   description/product, so add and check/uncheck are the same call, and
+#   quantity 0 deletes. Echoing the read-shape names back (originCode "TXT",
+#   "strikedthrough") is rejected with HTTP 400 "Failed to read request".
+# - No other routes exist: Allow is GET,HEAD,PATCH,OPTIONS and the /items/{id}
+#   and v1 paths 404.
+
+SHOPPINGLIST_ITEMS_URL: Final = f"{API_BASE}/mobile-services/shoppinglist/v2/items"

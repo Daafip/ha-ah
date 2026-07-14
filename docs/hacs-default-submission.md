@@ -15,9 +15,15 @@ Steps:
    `icon.png` (256×256) and `icon@2x.png` (512×512), derived from the official App Store
    artwork of the Albert Heijn app (nominative use of the brand mark for an integration
    that talks to their service is the accepted practice in the brands repo).
-2. Fork `home-assistant/brands`, copy that `custom_integrations/albert_heijn/` folder
-   into the fork's `custom_integrations/`, and open a PR; their CI validates dimensions
-   and naming.
+2. ✅ The same icons are shipped in-repo at `custom_components/albert_heijn/brand/`
+   — the fallback location the `hacs/action` brands check accepts, so CI passes
+   without (or ahead of) a brands-repo listing.
+3. Fork `home-assistant/brands`, copy the `docs/brands/custom_integrations/albert_heijn/`
+   folder into the fork's `custom_integrations/`, and open a PR; their CI validates
+   dimensions and naming. Still needed for the icon to actually *show* in the HA/HACS
+   UI, and a hard requirement for the default store. (Note: the extra `logo.png` in
+   the in-repo brand folder is 600×600 — brands-repo CI wants logos ≤256 px high, so
+   submit only `icon.png`/`icon@2x.png` or resize the logo first.)
 
 ## 2. HACS default store — hacs/default
 
@@ -27,20 +33,24 @@ add-repository step for other users. Requirements
 
 | Requirement | Status |
 | --- | --- |
-| Public repo, issues enabled, description set | ✅ (check description + topics on GitHub) |
+| Public repo, issues enabled, description set | ✅ |
+| GitHub repo **topics** set | ❌ the `hacs/action` topics check fails on this — see below |
 | `hacs.json` with `name` | ✅ |
 | `manifest.json` with domain/name/version/codeowners/docs/issue tracker | ✅ |
 | README describing the integration | ✅ |
 | GitHub releases | ✅ (v0.1.0+) |
 | `hacs/action` validation in CI | ✅ (`validate.yml`) |
-| Added to home-assistant/brands | ❌ step 1 above |
+| Brands: in-repo fallback for the CI check | ✅ `custom_components/albert_heijn/brand/icon.png` |
+| Added to home-assistant/brands | ❌ step 1 above; hard requirement for default store |
+
+Topics can only be set on GitHub itself: repo page → **About** (gear icon) →
+*Topics* → add e.g. `home-assistant`, `hacs`, `home-assistant-integration`,
+`custom-component`, `albert-heijn`. Any non-empty topic list satisfies the check.
 
 Steps once brands is merged:
 
-1. Add GitHub repo topics (e.g. `home-assistant`, `hacs`, `albert-heijn`) and a
-   description if not set.
-2. Fork `hacs/default`, add `Daafip/ha-ah` to the `integration` list (alphabetical).
-3. Open the PR using their template; automated checks run the same validation as our CI.
+1. Fork `hacs/default`, add `Daafip/ha-ah` to the `integration` list (alphabetical).
+2. Open the PR using their template; automated checks run the same validation as our CI.
 
 ## Worth knowing before submitting
 

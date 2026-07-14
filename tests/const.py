@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 
 from custom_components.albert_heijn.api import (
+    AhListItem,
     BasketInfo,
     DeliveryInfo,
     KoopzegelsData,
@@ -23,6 +24,7 @@ TOKEN_RESPONSE = load_fixture("token.json")
 KOOPZEGELS_RESPONSE = load_fixture("koopzegels.json")
 RECEIPTS_RESPONSE = load_fixture("receipts.json")
 DELIVERIES_RESPONSE = load_fixture("deliveries.json")
+LIST_ITEMS_RESPONSE = load_fixture("list_items.json")
 
 REFRESH_TOKEN = TOKEN_RESPONSE["refresh_token"]
 MEMBER_ID = "1234567"
@@ -59,6 +61,11 @@ SETTLEMENTS_TOTAL = 3.21
 SAVING_GOAL = SavingGoalInfo(name="Vakantie", amount=52.0)
 BASKET = BasketInfo(quantity=12, total=34.56)
 
+LIST_ITEMS = [
+    AhListItem(description="luiers", checked=False),
+    AhListItem(description="melk", checked=True, product_id=12345, quantity=2),
+]
+
 
 def make_client() -> AsyncMock:
     """An AhApiClient mock with all data methods stubbed."""
@@ -72,4 +79,8 @@ def make_client() -> AsyncMock:
     client.async_get_settlements_total.return_value = SETTLEMENTS_TOTAL
     client.async_get_saving_goal.return_value = SAVING_GOAL
     client.async_get_basket.return_value = BASKET
+    client.async_get_list_items.return_value = LIST_ITEMS
+    client.async_add_free_text_item.return_value = None
+    client.async_set_item_checked.return_value = None
+    client.async_delete_list_items.return_value = None
     return client
