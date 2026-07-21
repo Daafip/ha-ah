@@ -10,9 +10,12 @@ from urllib.parse import parse_qs, urlsplit
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -26,6 +29,7 @@ from .const import (
     CONF_LIST_SCAN_INTERVAL,
     CONF_MEMBER_ID,
     CONF_REFRESH_TOKEN,
+    CONF_SYNC_TARGET_ENTITY,
     CONF_UPDATE_INTERVAL,
     DEFAULT_LIST_SCAN_INTERVAL,
     DEFAULT_UPDATE_INTERVAL_HOURS,
@@ -127,6 +131,11 @@ class AhConfigFlow(ConfigFlow, domain=DOMAIN):
 class AhOptionsFlow(OptionsFlow):
     """Options: poll intervals and the opt-in shopping list sync."""
 
+    def _own_todo_entity_id(self) -> str | None:
+        """The dedicated AH todo entity's id, if it has ever been created."""
+        member_id = self.config_entry.data.get(CONF_MEMBER_ID, self.config_entry.entry_id)
+        return er.async_get(self.hass).async_get_entity_id("todo", DOMAIN, f"{member_id}_shopping_list")
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Show and store the options."""
         if user_input is not None:
@@ -135,10 +144,15 @@ class AhOptionsFlow(OptionsFlow):
                     CONF_UPDATE_INTERVAL: int(user_input[CONF_UPDATE_INTERVAL]),
                     CONF_LIST_ENABLED: bool(user_input[CONF_LIST_ENABLED]),
                     CONF_LIST_SCAN_INTERVAL: int(user_input[CONF_LIST_SCAN_INTERVAL]),
+                    # Empty selection reads back as "" (not omitted): store it
+                    # as the falsy "not set" value the rest of the code expects.
+                    CONF_SYNC_TARGET_ENTITY: user_input.get(CONF_SYNC_TARGET_ENTITY) or "",
                 }
             )
 
         options = self.config_entry.options
+        current_target = options.get(CONF_SYNC_TARGET_ENTITY) or None
+        exclude = [own_id] if (own_id := self._own_todo_entity_id()) else []
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -170,6 +184,9 @@ class AhOptionsFlow(OptionsFlow):
                             unit_of_measurement="s",
                             mode=NumberSelectorMode.BOX,
                         )
+                    ),
+                    vol.Optional(CONF_SYNC_TARGET_ENTITY, default=current_target or vol.UNDEFINED): EntitySelector(
+                        EntitySelectorConfig(domain="todo", exclude_entities=exclude)
                     ),
                 }
             ),

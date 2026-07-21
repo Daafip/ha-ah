@@ -56,24 +56,53 @@ A redacted diagnostics download is available from the device page for bug report
 
 ## Shopping list ("Mijn lijst")
 
-The AH shopping list can be exposed as a todo entity with full add/check/delete
-support. It is **off by default**: enable *Sync shopping list* via the entry's
-**Configure** button (no restart needed). While enabled, the list is polled every
-2 minutes (configurable, min 60 s); items you add from HA land in the AH app as
-free-text lines. Renaming items is not supported by the AH API.
+The AH shopping list can be synced with Home Assistant with full add/check support
+(free text only — no product matching, no quantity sync). It is **off by default**:
+enable *Sync shopping list* via the entry's **Configure** button (no restart needed).
+While enabled, the AH side is polled every 2 minutes (configurable, min 60 s).
+
+There are two ways to use it, chosen via the **Configure** dialog's *"Existing todo
+list to sync with"* field:
+
+1. **Sync into an existing todo list (recommended)** — pick e.g. the built-in
+   `todo.shopping_list`. The integration syncs directly into it: no extra entity is
+   created, and no automation is needed. Adding an item in HA (or checking one off)
+   pushes to the AH app; an item checked off or deleted in the AH app is completed
+   in HA. This is what the rest of this section describes.
+2. **A dedicated entity** — leave the field empty and a separate
+   `todo.albert_heijn_*` entity is created, mirroring the AH list one-to-one
+   (add/check/delete all round-trip to AH). Use this if you want to wire it up to
+   your own list yourself, e.g. with the automation further below, or if you don't
+   want the built-in sync touching an existing list at all.
+
+Renaming items is not supported by the AH API in either mode.
 
 Notes:
 
-- The entity id follows your HA language: `todo.albert_heijn_shopping_list` on an
-  English install, `todo.albert_heijn_boodschappenlijst` on a Dutch one. The
-  examples below assume English — adjust to yours.
+- With the dedicated entity, the entity id follows your HA language:
+  `todo.albert_heijn_shopping_list` on an English install,
+  `todo.albert_heijn_boodschappenlijst` on a Dutch one.
 - This is the shopping list that sits next to the basket in the AH app, **not**
   the webshop basket itself.
 
-### Two-way sync with the Home Assistant shopping list
+### How the built-in sync stays loop-safe
 
-The automation below keeps `todo.shopping_list` (HA's built-in shopping list) and
-the AH list in sync, loop-safely:
+- HA → AH: adding an item, or checking one off, in the target todo list pushes
+  that change to the AH app; matching is case/whitespace-insensitive, so it
+  survives however HA normalises what you typed.
+- AH → HA: an item checked off or removed in the AH app is marked completed in
+  the target todo list — on the next poll, or immediately if the change was
+  triggered by a push from the HA side (which forces an immediate re-check).
+  Nothing is ever un-completed or resurrected.
+- It never adds an AH-only item into HA: only completions flow from AH to HA.
+
+### Alternative: automation for the dedicated entity
+
+If you used the dedicated-entity mode, the automation below keeps
+`todo.shopping_list` (HA's built-in shopping list) and the AH entity in sync,
+loop-safely — the same logic the built-in sync option above runs internally,
+as an automation you can adapt. (Skip this if you picked option 1: it already
+does this for you.)
 
 - added in HA → added to the AH list as free text;
 - checked off in HA → checked in the AH app;

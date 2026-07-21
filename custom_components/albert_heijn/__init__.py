@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import AhApiClient
-from .const import CONF_LIST_ENABLED, CONF_REFRESH_TOKEN
+from .const import CONF_LIST_ENABLED, CONF_REFRESH_TOKEN, CONF_SYNC_TARGET_ENTITY
 from .coordinator import (
     AhConfigEntry,
     AhCoordinator,
@@ -15,6 +15,7 @@ from .coordinator import (
     list_interval_from_options,
     update_interval_from_options,
 )
+from .sync import AhListSyncManager
 
 PLATFORMS: list[Platform] = [Platform.CALENDAR, Platform.SENSOR, Platform.TODO]
 
@@ -22,11 +23,15 @@ PLATFORMS: list[Platform] = [Platform.CALENDAR, Platform.SENSOR, Platform.TODO]
 async def _async_apply_options(hass: HomeAssistant, entry: AhConfigEntry) -> None:
     coordinator = entry.runtime_data
 
-    # The list coordinator and todo entity only exist while the option is on,
-    # so flipping the toggle needs a reload. Comparing desired vs actual state
-    # keeps token-rotation entry updates from looping a reload.
+    # The list coordinator (and either the dedicated todo entity or the sync
+    # manager for an existing one) only exist while the option is on and for
+    # the currently chosen target, so flipping either needs a reload.
+    # Comparing desired vs actual state keeps token-rotation entry updates
+    # from looping a reload.
     list_enabled = entry.options.get(CONF_LIST_ENABLED, False)
-    if list_enabled != (coordinator.list_coordinator is not None):
+    target_entity_id = entry.options.get(CONF_SYNC_TARGET_ENTITY) or None
+    list_active = coordinator.list_coordinator is not None
+    if list_enabled != list_active or (list_enabled and target_entity_id != coordinator.sync_target_entity_id):
         await hass.config_entries.async_reload(entry.entry_id)
         return
 
@@ -68,6 +73,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: AhConfigEntry) -> bool:
         # feature is opt-in and secondary to the sensors.
         await list_coordinator.async_refresh()
         coordinator.list_coordinator = list_coordinator
+
+        target_entity_id = entry.options.get(CONF_SYNC_TARGET_ENTITY) or None
+        coordinator.sync_target_entity_id = target_entity_id
+        if target_entity_id:
+            # An existing entity (e.g. todo.shopping_list) was picked: sync
+            # into it directly instead of creating a dedicated AH entity.
+            sync_manager = AhListSyncManager(hass, client, list_coordinator, target_entity_id)
+            sync_manager.async_setup()
+            entry.async_on_unload(sync_manager.async_unload)
+            coordinator.list_sync_manager = sync_manager
 
     entry.runtime_data = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_apply_options))

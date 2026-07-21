@@ -13,6 +13,7 @@ from custom_components.albert_heijn.const import (
     CONF_LIST_SCAN_INTERVAL,
     CONF_MEMBER_ID,
     CONF_REFRESH_TOKEN,
+    CONF_SYNC_TARGET_ENTITY,
     CONF_UPDATE_INTERVAL,
     DOMAIN,
 )
@@ -53,7 +54,12 @@ async def test_options_flow_updates_interval_without_reload(hass: HomeAssistant)
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     # The untouched list options are stored with their defaults.
-    assert entry.options == {CONF_UPDATE_INTERVAL: 12, CONF_LIST_ENABLED: False, CONF_LIST_SCAN_INTERVAL: 120}
+    assert entry.options == {
+        CONF_UPDATE_INTERVAL: 12,
+        CONF_LIST_ENABLED: False,
+        CONF_LIST_SCAN_INTERVAL: 120,
+        CONF_SYNC_TARGET_ENTITY: "",
+    }
     assert entry.runtime_data.update_interval == timedelta(hours=12)
     assert entry.state is ConfigEntryState.LOADED
     # Applied in place: the integration must not have been re-set-up.
@@ -131,6 +137,61 @@ async def test_list_interval_change_applies_without_reload(hass: HomeAssistant):
     assert entry.state is ConfigEntryState.LOADED
     # Applied in place: the integration must not have been re-set-up.
     assert client_cls.call_count == 1
+
+
+async def test_setting_sync_target_entity_reloads(hass: HomeAssistant):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=MEMBER_ID,
+        data={CONF_REFRESH_TOKEN: REFRESH_TOKEN, CONF_MEMBER_ID: MEMBER_ID},
+        options={CONF_UPDATE_INTERVAL: 6, CONF_LIST_ENABLED: True, CONF_LIST_SCAN_INTERVAL: 120},
+    )
+    entry.add_to_hass(hass)
+    client = make_client()
+    with patch("custom_components.albert_heijn.AhApiClient", return_value=client) as client_cls:
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        assert entry.runtime_data.sync_target_entity_id is None
+        (entity_id,) = hass.states.async_entity_ids("todo")  # the dedicated AH entity
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            user_input={
+                CONF_UPDATE_INTERVAL: 6,
+                CONF_LIST_ENABLED: True,
+                CONF_LIST_SCAN_INTERVAL: 120,
+                CONF_SYNC_TARGET_ENTITY: "todo.shopping_list",
+            },
+        )
+        await hass.async_block_till_done()
+
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+        assert client_cls.call_count == 2  # reloaded
+        assert entry.runtime_data.sync_target_entity_id == "todo.shopping_list"
+        assert entry.runtime_data.list_sync_manager is not None
+        # The dedicated entity is gone; the registry keeps a restored placeholder.
+        assert hass.states.get(entity_id).state == "unavailable"
+
+
+async def test_own_todo_entity_excluded_from_target_selector(hass: HomeAssistant):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=MEMBER_ID,
+        data={CONF_REFRESH_TOKEN: REFRESH_TOKEN, CONF_MEMBER_ID: MEMBER_ID},
+        options={CONF_LIST_ENABLED: True},
+    )
+    entry.add_to_hass(hass)
+    with patch("custom_components.albert_heijn.AhApiClient", return_value=make_client()):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        (own_entity_id,) = hass.states.async_entity_ids("todo")
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    schema = result["data_schema"].schema
+    (target_selector,) = [v for k, v in schema.items() if str(k) == CONF_SYNC_TARGET_ENTITY]
+    assert own_entity_id in target_selector.config["exclude_entities"]
 
 
 async def test_token_rotation_does_not_reload(hass: HomeAssistant):

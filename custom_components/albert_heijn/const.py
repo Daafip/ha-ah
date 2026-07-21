@@ -29,6 +29,7 @@ CONF_MEMBER_ID: Final = "member_id"
 CONF_UPDATE_INTERVAL: Final = "update_interval"  # hours, options flow
 CONF_LIST_ENABLED: Final = "list_enabled"  # options flow, opt-in
 CONF_LIST_SCAN_INTERVAL: Final = "list_scan_interval"  # seconds, options flow
+CONF_SYNC_TARGET_ENTITY: Final = "sync_target_entity"  # options flow, optional todo entity_id
 
 DEFAULT_UPDATE_INTERVAL_HOURS: Final = 6
 MIN_UPDATE_INTERVAL_HOURS: Final = 1

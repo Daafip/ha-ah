@@ -6,12 +6,16 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
+
+if TYPE_CHECKING:
+    from .sync import AhListSyncManager
 
 from .api import (
     AhApiClient,
@@ -108,6 +112,10 @@ class AhCoordinator(DataUpdateCoordinator[AhData]):
         self.client = client
         # Set at setup when the shopping list option is enabled; None otherwise.
         self.list_coordinator: AhListCoordinator | None = None
+        # Set when an existing HA todo entity was picked to sync with instead
+        # of the dedicated AH entity; both None when that option is unused.
+        self.sync_target_entity_id: str | None = None
+        self.list_sync_manager: AhListSyncManager | None = None
 
     async def _async_update_data(self) -> AhData:
         # Koopzegels is the primary sensor: its failures decide availability

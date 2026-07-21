@@ -34,12 +34,14 @@
         "data": {
           "update_interval": "Bijwerkinterval (uren)",
           "list_enabled": "Boodschappenlijst synchroniseren",
-          "list_scan_interval": "Scaninterval boodschappenlijst (seconden)"
+          "list_scan_interval": "Scaninterval boodschappenlijst (seconden)",
+          "sync_target_entity": "Bestaande todo-lijst om mee te synchroniseren (optioneel)"
         },
         "data_description": {
           "update_interval": "Hoe vaak het koopzegelsaldo wordt opgehaald. Het saldo verandert alleen als je boodschappen doet, dus houd dit bescheiden — de API is onofficieel.",
-          "list_enabled": "Toon de AH-boodschappenlijst (\"Mijn lijst\") als todo-entiteit die gesynchroniseerd kan worden met de Home Assistant-boodschappenlijst.",
-          "list_scan_interval": "Hoe vaak de boodschappenlijst wordt gecontroleerd op wijzigingen uit de AH-app. Alleen gebruikt zolang de synchronisatie aanstaat."
+          "list_enabled": "Toon de AH-boodschappenlijst (\"Mijn lijst\") en synchroniseer die met Home Assistant.",
+          "list_scan_interval": "Hoe vaak de boodschappenlijst wordt gecontroleerd op wijzigingen uit de AH-app. Alleen gebruikt zolang de synchronisatie aanstaat.",
+          "sync_target_entity": "Kies een bestaande todo-lijst, bijvoorbeeld de ingebouwde boodschappenlijst, om direct mee te synchroniseren in plaats van een aparte Albert Heijn-entiteit aan te maken. Laat leeg voor een eigen entiteit die je zelf koppelt."
         }
       }
     }

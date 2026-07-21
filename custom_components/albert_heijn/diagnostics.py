@@ -33,4 +33,5 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: AhConfi
         diagnostics["list_items"] = (
             [asdict(item) for item in list_coordinator.data] if list_coordinator.data is not None else None
         )
+        diagnostics["list_sync_target_entity"] = coordinator.sync_target_entity_id
     return diagnostics

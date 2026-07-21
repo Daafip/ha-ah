@@ -24,9 +24,14 @@ async def async_setup_entry(
     entry: AhConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the shopping list from a config entry, when the option is enabled."""
+    """Set up the shopping list from a config entry, when the option is enabled.
+
+    Skipped when an existing todo entity was picked to sync with instead
+    (options flow "sync_target_entity"): that entity is driven by
+    AhListSyncManager via services, not by an entity this integration owns.
+    """
     list_coordinator = entry.runtime_data.list_coordinator
-    if list_coordinator is None:
+    if list_coordinator is None or entry.runtime_data.sync_target_entity_id:
         return
     member_id = entry.data.get(CONF_MEMBER_ID, entry.entry_id)
     async_add_entities([AhShoppingListTodoEntity(list_coordinator, member_id)])

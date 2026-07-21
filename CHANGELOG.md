@@ -5,6 +5,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-21
+
+### Added
+
+- Options flow: pick an **existing todo list** (e.g. the built-in
+  `todo.shopping_list`) to sync directly, instead of always creating a
+  dedicated `todo.albert_heijn_*` entity. Leave the field empty to keep the
+  previous (dedicated-entity) behavior. Switching between the two — or to a
+  different target entity — reloads the entry, same as toggling the sync
+  itself.
+- New `AhListSyncManager` implements the sync directly against the chosen
+  entity via the `todo` services (`get_items`/`add_item`/`update_item`): HA-side
+  changes push additions and check-offs to the AH list; AH poll updates pull
+  checked-off-or-deleted items into completions on the HA side. This is the
+  same logic the README's manual automation used, now built in.
+- Diagnostics report the configured sync target entity.
+
+### Changed
+
+- The options-flow entity selector excludes the integration's own dedicated
+  todo entity (when one exists) to avoid pointing the sync at itself.
+
 ## [0.5.0] - 2026-07-14
 
 ### Added

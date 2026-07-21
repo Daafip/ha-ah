@@ -34,12 +34,14 @@
         "data": {
           "update_interval": "Update interval (hours)",
           "list_enabled": "Sync shopping list",
-          "list_scan_interval": "Shopping list scan interval (seconds)"
+          "list_scan_interval": "Shopping list scan interval (seconds)",
+          "sync_target_entity": "Existing todo list to sync with (optional)"
         },
         "data_description": {
           "update_interval": "How often to fetch the koopzegels balance. The balance only changes when you shop, so keep this modest — the API is unofficial.",
-          "list_enabled": "Expose the AH shopping list (\"Mijn lijst\") as a todo entity that can be synced with the Home Assistant shopping list.",
-          "list_scan_interval": "How often to poll the shopping list for changes made in the AH app. Only used while the sync is enabled."
+          "list_enabled": "Expose the AH shopping list (\"Mijn lijst\") and sync it with Home Assistant.",
+          "list_scan_interval": "How often to poll the shopping list for changes made in the AH app. Only used while the sync is enabled.",
+          "sync_target_entity": "Pick an existing todo list, e.g. the built-in Shopping list, to sync directly instead of creating a separate Albert Heijn entity. Leave empty to get a dedicated entity you can wire up yourself."
         }
       }
     }
