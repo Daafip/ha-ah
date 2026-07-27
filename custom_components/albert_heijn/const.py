@@ -31,6 +31,9 @@ CONF_LIST_ENABLED: Final = "list_enabled"  # options flow, opt-in
 CONF_LIST_SCAN_INTERVAL: Final = "list_scan_interval"  # seconds, options flow
 CONF_SYNC_TARGET_ENTITY: Final = "sync_target_entity"  # options flow, optional todo entity_id
 
+SERVICE_SYNC_SHOPPING_LIST: Final = "sync_shopping_list"
+ATTR_CONFIG_ENTRY_ID: Final = "config_entry_id"
+
 DEFAULT_UPDATE_INTERVAL_HOURS: Final = 6
 MIN_UPDATE_INTERVAL_HOURS: Final = 1
 MAX_UPDATE_INTERVAL_HOURS: Final = 24
@@ -194,3 +197,8 @@ query HaOrderFulfillments {
 #   and v1 paths 404.
 
 SHOPPINGLIST_ITEMS_URL: Final = f"{API_BASE}/mobile-services/shoppinglist/v2/items"
+
+# One PATCH carries many items, but the app never sends more than a handful at
+# once and this endpoint is unofficial, so a long list is written in batches
+# rather than as one large payload.
+LIST_WRITE_BATCH_SIZE: Final = 25

@@ -20,6 +20,7 @@ from custom_components.albert_heijn.api import (
 )
 from custom_components.albert_heijn.const import (
     GRAPHQL_URL,
+    LIST_WRITE_BATCH_SIZE,
     SHOPPINGLIST_ITEMS_URL,
     TOKEN_REFRESH_URL,
     TOKEN_URL,
@@ -388,6 +389,42 @@ async def test_set_item_checked_payload(session):
         "strikeThrough": True,
         "productId": 12345,
     }
+
+
+async def test_write_list_items_one_patch_for_adds_and_checks(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    items = [
+        AhListItem(description="kaas", checked=False),  # add
+        AhListItem(description="melk", checked=True, product_id=12345, quantity=2),  # check off
+    ]
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.patch(SHOPPINGLIST_ITEMS_URL, status=200, payload={})
+        await client.async_write_list_items(items)
+        requests = mock.requests[("PATCH", URL(SHOPPINGLIST_ITEMS_URL))]
+    assert len(requests) == 1  # adds and check marks ride along on one merge
+    entries = requests[0].kwargs["json"]["items"]
+    assert [entry["description"] for entry in entries] == ["kaas", "melk"]
+    assert [entry["strikeThrough"] for entry in entries] == [False, True]
+    assert entries[1]["productId"] == 12345
+
+
+async def test_write_list_items_splits_long_lists(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    items = [AhListItem(description=f"item {i}", checked=False) for i in range(LIST_WRITE_BATCH_SIZE + 1)]
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.patch(SHOPPINGLIST_ITEMS_URL, status=200, payload={}, repeat=True)
+        await client.async_write_list_items(items)
+        requests = mock.requests[("PATCH", URL(SHOPPINGLIST_ITEMS_URL))]
+    assert [len(request.kwargs["json"]["items"]) for request in requests] == [LIST_WRITE_BATCH_SIZE, 1]
+
+
+async def test_write_list_items_no_request_when_empty(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        await client.async_write_list_items([])
+        assert mock.requests == {}  # not even a token refresh
 
 
 async def test_delete_list_items_batches_one_patch(session):

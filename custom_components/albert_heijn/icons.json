@@ -1,4 +1,7 @@
 {
+  "services": {
+    "sync_shopping_list": "mdi:cart-arrow-right"
+  },
   "entity": {
     "calendar": {
       "deliveries": {
@@ -8,6 +11,11 @@
     "todo": {
       "shopping_list": {
         "default": "mdi:cart-outline"
+      }
+    },
+    "button": {
+      "sync_shopping_list": {
+        "default": "mdi:cart-arrow-right"
       }
     },
     "sensor": {

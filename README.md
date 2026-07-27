@@ -6,7 +6,7 @@ Albert Heijn digital **koopzegels** as a sensor.
 > [!WARNING]
 > This rides the **unofficial** AH mobile-app API, which can change or break without
 > notice. It is a personal-use project, polls gently (every 6 hours; the optional
-> shopping list sync polls every 2 minutes), and is not affiliated with Albert Heijn.
+> shopping list pushes only when you ask it to), and is not affiliated with Albert Heijn.
 
 ## Sensors
 
@@ -23,6 +23,7 @@ Albert Heijn digital **koopzegels** as a sensor.
 | **Saving goal** | Koopzegels saving goal, with progress attributes |
 | **Basket** | Current webshop basket total and item count |
 | **Shopping list** (todo) | The AH shopping list ("Mijn lijst") as a todo entity — opt-in, see below |
+| **Sync shopping list** (button) | Pushes your Home Assistant to-do list to the AH app — opt-in, see below |
 
 The koopzegels sensor carries attributes for the stamp counts:
 
@@ -54,26 +55,46 @@ working, HA prompts to re-authenticate with a fresh code.
 The poll interval (default 6 h) is configurable via the entry's **Configure** button.
 A redacted diagnostics download is available from the device page for bug reports.
 
+### Getting the login code with less copy-pasting
+
+Two optional helpers make step 3 above less fiddly. Neither is required — manually
+copying the address from the browser's error page always works.
+
+- **Linux desktop:** `scripts/install-appie-catcher.sh` registers `appie://` links
+  with a small script that appends the code to a file (default `~/appie-code.txt`)
+  instead of failing to open. Log in, then `tail -1 ~/appie-code.txt` for the code.
+  `scripts/uninstall-appie-catcher.sh` removes it again.
+- **Any device, including mobile:** `scripts/appie-code-helper.html` is a static,
+  offline page — open it locally in any browser, paste whatever text you can get
+  hold of that contains the failed redirect (or just the code), and it extracts a
+  clean, copyable code. It can't catch the redirect itself: `appie://...` is a
+  custom URL scheme, so nothing hosted (this page included) gets a chance to run
+  before the OS looks for a registered app and gives up — this only cleans up
+  whatever text you already have. If your phone's browser doesn't surface that
+  text anywhere (no error page, nothing in the address bar), remote-debugging it
+  from a computer over USB (`chrome://inspect` for Android Chrome, Safari's
+  *Develop* menu for iOS) shows the failed request's `Location` header in the
+  Network tab regardless of what the screen displays.
+
 ## Shopping list ("Mijn lijst")
 
-The AH shopping list can be synced with Home Assistant with full add/check support
-(free text only — no product matching, no quantity sync). It is **off by default**:
-enable *Sync shopping list* via the entry's **Configure** button (no restart needed).
-While enabled, the AH side is polled every 2 minutes (configurable, min 60 s).
+The AH shopping list can be filled from Home Assistant (free text only — no product
+matching, no quantity sync). It is **off by default**: enable *Sync shopping list*
+via the entry's **Configure** button (no restart needed).
 
-There are two ways to use it, chosen via the **Configure** dialog's *"Existing todo
-list to sync with"* field:
+There are two ways to use it, chosen via the **Configure** dialog's *"Existing to-do
+list to push to Albert Heijn"* field:
 
-1. **Sync into an existing todo list (recommended)** — pick e.g. the built-in
-   `todo.shopping_list`. The integration syncs directly into it: no extra entity is
-   created, and no automation is needed. Adding an item in HA (or checking one off)
-   pushes to the AH app; an item checked off or deleted in the AH app is completed
-   in HA. This is what the rest of this section describes.
+1. **Push an existing to-do list (recommended)** — pick e.g. the built-in
+   `todo.shopping_list`. No extra entity is created and nothing runs in the
+   background: you press the **Sync shopping list** button (or call the
+   `albert_heijn.sync_shopping_list` action) and the list is pushed to the app in
+   one batched write. This is what the rest of this section describes.
 2. **A dedicated entity** — leave the field empty and a separate
    `todo.albert_heijn_*` entity is created, mirroring the AH list one-to-one
-   (add/check/delete all round-trip to AH). Use this if you want to wire it up to
-   your own list yourself, e.g. with the automation further below, or if you don't
-   want the built-in sync touching an existing list at all.
+   (add/check/delete all round-trip to AH immediately, and the AH side is polled
+   every 2 minutes). Use this if you want to wire it up yourself, or if you don't
+   want the integration touching an existing list at all.
 
 Renaming items is not supported by the AH API in either mode.
 
@@ -85,68 +106,86 @@ Notes:
 - This is the shopping list that sits next to the basket in the AH app, **not**
   the webshop basket itself.
 
-### How the built-in sync stays loop-safe
+### What a push does
 
-- HA → AH: adding an item, or checking one off, in the target todo list pushes
-  that change to the AH app; matching is case/whitespace-insensitive, so it
-  survives however HA normalises what you typed.
-- AH → HA: an item checked off or removed in the AH app is marked completed in
-  the target todo list — on the next poll, or immediately if the change was
-  triggered by a push from the HA side (which forces an immediate re-check).
-  Nothing is ever un-completed or resurrected.
-- It never adds an AH-only item into HA: only completions flow from AH to HA.
+The push is **one-way and manual**: Home Assistant writes to the AH app, never the
+other way around, and only when you ask for it. Per item on the source list:
+
+| On your HA list | On the AH list | What happens |
+| --- | --- | --- |
+| open | absent | added as free text |
+| open | present (checked or not) | left alone |
+| completed | open | checked off in the app |
+| completed | absent or already checked | nothing |
+| — | present | left alone (you added it in the app) |
+
+Matching is case- and whitespace-insensitive, so it survives however HA normalises
+what you typed. Nothing is ever written back into Home Assistant: an item you check
+off in the app stays open on your HA list until you clear it there yourself.
+
+Two earlier behaviours are gone on purpose. The sync no longer runs itself on every
+list change and every poll (that turned one long list into a storm of requests that
+kept re-reading each other's half-finished work), and it no longer pulls AH changes
+back into HA. In this mode the AH list is only read at the moment you push.
+
+### The action
+
+```yaml
+action: albert_heijn.sync_shopping_list
+data:
+  entity_id: todo.shopping_list   # optional, defaults to the configured list
+```
+
+Both fields are optional: `entity_id` pushes a different to-do list than the
+configured one, and `config_entry_id` picks the account when you have more than one
+Albert Heijn entry set up to sync. Ask for a response to see what changed:
+
+```yaml
+action: albert_heijn.sync_shopping_list
+response_variable: pushed
+# pushed = {source_entity_id: ..., added: [...], checked: [...], unchanged: 2}
+```
+
+Add the **Sync shopping list** button to a dashboard for a one-tap version:
+
+```yaml
+type: button
+entity: button.albert_heijn_sync_shopping_list
+name: Naar AH-lijst
+icon: mdi:cart-arrow-right
+```
+
+Or push automatically at a moment that suits you — e.g. when you leave home, so the
+app is up to date by the time you reach the store:
+
+```yaml
+alias: "AH: lijst pushen bij vertrek"
+triggers:
+  - trigger: zone
+    entity_id: person.me
+    zone: zone.home
+    event: leave
+actions:
+  - action: albert_heijn.sync_shopping_list
+mode: single
+```
 
 ### Alternative: automation for the dedicated entity
 
-If you used the dedicated-entity mode, the automation below keeps
-`todo.shopping_list` (HA's built-in shopping list) and the AH entity in sync,
-loop-safely — the same logic the built-in sync option above runs internally,
-as an automation you can adapt. (Skip this if you picked option 1: it already
-does this for you.)
-
-- added in HA → added to the AH list as free text;
-- checked off in HA → checked in the AH app;
-- checked off **or deleted** in the AH app → marked completed in HA (never
-  resurrected).
-
-Every run first reads both lists with `todo.get_items` and only writes when the
-target actually differs (compare-before-write), so echo loops die out and the
-5-minute fallback tick is idempotent. Items are matched case-insensitively on
-their name; quotes and emoji in item names are fine because names are never
-spliced into templates. Deletions are only pulled right after the AH entity
-changed — on other runs a brand-new HA item would look "deleted" before it was
-ever pushed.
+With the dedicated-entity mode there is no button and no action — that entity *is*
+the AH list, so writing to it writes to the app. The automation below does the same
+one-way push from `todo.shopping_list`, on demand:
 
 ```yaml
-alias: "AH: boodschappenlijst twee-weg sync"
-description: >-
-  Two-way sync between todo.shopping_list and the Albert Heijn list.
-  Compare-before-write keeps it idempotent and loop-safe.
-triggers:
-  - trigger: state
-    entity_id: todo.shopping_list
-    not_from: [unavailable, unknown]
-    not_to: [unavailable, unknown]
-    id: ha_changed
-  - trigger: state
-    entity_id: todo.albert_heijn_shopping_list
-    not_from: [unavailable, unknown]
-    not_to: [unavailable, unknown]
-    id: ah_changed
-  - trigger: time_pattern
-    minutes: "/5"
-    id: reconcile
-conditions:
-  - condition: template
-    value_template: >-
-      {{ states('todo.shopping_list') not in ['unavailable', 'unknown'] and
-         states('todo.albert_heijn_shopping_list') not in ['unavailable', 'unknown'] }}
+alias: "AH: boodschappenlijst pushen"
+description: One-way push from todo.shopping_list to the Albert Heijn entity.
+triggers: []   # run it by hand, or add your own trigger
 actions:
   - action: todo.get_items
     target:
       entity_id: todo.shopping_list
     data:
-      status: [needs_action, completed]
+      status: [needs_action]
     response_variable: ha_response
   - action: todo.get_items
     target:
@@ -155,108 +194,24 @@ actions:
       status: [needs_action, completed]
     response_variable: ah_response
   - variables:
-      ha_all: "{{ ha_response['todo.shopping_list']['items'] }}"
-      ah_all: "{{ ah_response['todo.albert_heijn_shopping_list']['items'] }}"
-      ah_open_norm: >-
-        {{ ah_all | selectattr('status', 'eq', 'needs_action')
-                  | map(attribute='summary') | map('lower') | map('trim') | list }}
-      ah_done_norm: >-
-        {{ ah_all | selectattr('status', 'eq', 'completed')
-                  | map(attribute='summary') | map('lower') | map('trim') | list }}
-      # Open in HA and entirely unknown to AH -> add to AH (free text).
-      to_add_to_ah: >-
+      ah_known: >-
+        {{ ah_response['todo.albert_heijn_shopping_list']['items']
+           | map(attribute='summary') | map('lower') | map('trim') | list }}
+      to_add: >-
         {% set ns = namespace(items=[]) %}
-        {% for ha_item in ha_all if ha_item.status == 'needs_action'
-           and (ha_item.summary | lower | trim) not in ah_open_norm + ah_done_norm %}
-          {% set ns.items = ns.items + [ha_item.summary] %}
+        {% for item in ha_response['todo.shopping_list']['items']
+           if (item.summary | lower | trim) not in ah_known %}
+          {% set ns.items = ns.items + [item.summary] %}
         {% endfor %}
         {{ ns.items }}
-      # Completed in HA but still open in AH -> check in the app.
-      to_check_in_ah: >-
-        {% set ns = namespace(items=[]) %}
-        {% for ha_item in ha_all if ha_item.status == 'completed' %}
-          {% for ah_item in ah_all if ah_item.status == 'needs_action'
-             and (ah_item.summary | lower | trim) == (ha_item.summary | lower | trim) %}
-            {% set ns.items = ns.items + [ah_item.summary] %}
-          {% endfor %}
-        {% endfor %}
-        {{ ns.items }}
-      # Open in HA but checked in AH -> complete in HA. Safe on every run.
-      to_complete_in_ha: >-
-        {% set ns = namespace(items=[]) %}
-        {% for ha_item in ha_all if ha_item.status == 'needs_action'
-           and (ha_item.summary | lower | trim) in ah_done_norm %}
-          {% set ns.items = ns.items + [ha_item.summary] %}
-        {% endfor %}
-        {{ ns.items }}
-      # Open in HA and gone from AH -> deleted in the app -> complete in HA.
-      # Only acted on right after an AH change (see the choose below).
-      to_complete_in_ha_deleted: >-
-        {% set ns = namespace(items=[]) %}
-        {% for ha_item in ha_all if ha_item.status == 'needs_action'
-           and (ha_item.summary | lower | trim) not in ah_open_norm + ah_done_norm %}
-          {% set ns.items = ns.items + [ha_item.summary] %}
-        {% endfor %}
-        {{ ns.items }}
-  - choose:
-      # The HA list changed: push to AH.
-      - conditions:
-          - condition: trigger
-            id: ha_changed
-        sequence:
-          - repeat:
-              for_each: "{{ to_add_to_ah }}"
-              sequence:
-                - action: todo.add_item
-                  target:
-                    entity_id: todo.albert_heijn_shopping_list
-                  data:
-                    item: "{{ repeat.item }}"
-          - repeat:
-              for_each: "{{ to_check_in_ah }}"
-              sequence:
-                - action: todo.update_item
-                  target:
-                    entity_id: todo.albert_heijn_shopping_list
-                  data:
-                    item: "{{ repeat.item }}"
-                    status: completed
-      # The AH list changed (an app edit picked up by the poll): pull into HA.
-      - conditions:
-          - condition: trigger
-            id: ah_changed
-        sequence:
-          - repeat:
-              for_each: "{{ to_complete_in_ha + to_complete_in_ha_deleted }}"
-              sequence:
-                - action: todo.update_item
-                  target:
-                    entity_id: todo.shopping_list
-                  data:
-                    item: "{{ repeat.item }}"
-                    status: completed
-    # Fallback tick: reconcile checked state in both directions, which is safe
-    # no matter which side changed. Additions wait for an HA state change,
-    # deletions for an AH one.
-    default:
-      - repeat:
-          for_each: "{{ to_check_in_ah }}"
-          sequence:
-            - action: todo.update_item
-              target:
-                entity_id: todo.albert_heijn_shopping_list
-              data:
-                item: "{{ repeat.item }}"
-                status: completed
-      - repeat:
-          for_each: "{{ to_complete_in_ha }}"
-          sequence:
-            - action: todo.update_item
-              target:
-                entity_id: todo.shopping_list
-              data:
-                item: "{{ repeat.item }}"
-                status: completed
+  - repeat:
+      for_each: "{{ to_add }}"
+      sequence:
+        - action: todo.add_item
+          target:
+            entity_id: todo.albert_heijn_shopping_list
+          data:
+            item: "{{ repeat.item }}"
 mode: single
 max_exceeded: silent
 ```

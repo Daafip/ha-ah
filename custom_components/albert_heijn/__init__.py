@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
 
 from .api import AhApiClient
-from .const import CONF_LIST_ENABLED, CONF_REFRESH_TOKEN, CONF_SYNC_TARGET_ENTITY
+from .const import CONF_LIST_ENABLED, CONF_REFRESH_TOKEN, CONF_SYNC_TARGET_ENTITY, DOMAIN
 from .coordinator import (
     AhConfigEntry,
     AhCoordinator,
@@ -15,9 +17,12 @@ from .coordinator import (
     list_interval_from_options,
     update_interval_from_options,
 )
+from .services import async_register_services
 from .sync import AhListSyncManager
 
-PLATFORMS: list[Platform] = [Platform.CALENDAR, Platform.SENSOR, Platform.TODO]
+PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.CALENDAR, Platform.SENSOR, Platform.TODO]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def _async_apply_options(hass: HomeAssistant, entry: AhConfigEntry) -> None:
@@ -50,6 +55,12 @@ async def _async_apply_options(hass: HomeAssistant, entry: AhConfigEntry) -> Non
             await list_coordinator.async_request_refresh()
 
 
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the integration-level services (they outlive individual entries)."""
+    async_register_services(hass)
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: AhConfigEntry) -> bool:
     """Set up Albert Heijn from a config entry."""
 
@@ -68,8 +79,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: AhConfigEntry) -> bool:
 
     if entry.options.get(CONF_LIST_ENABLED, False):
         list_coordinator = AhListCoordinator(hass, entry, client)
-        # A failed first fetch leaves the todo entity unavailable until a
-        # later poll succeeds, instead of failing the whole entry: the list
+        # A failed first fetch leaves the todo entity unavailable until a later
+        # poll (or push) succeeds, instead of failing the whole entry: the list
         # feature is opt-in and secondary to the sensors.
         await list_coordinator.async_refresh()
         coordinator.list_coordinator = list_coordinator
@@ -77,12 +88,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: AhConfigEntry) -> bool:
         target_entity_id = entry.options.get(CONF_SYNC_TARGET_ENTITY) or None
         coordinator.sync_target_entity_id = target_entity_id
         if target_entity_id:
-            # An existing entity (e.g. todo.shopping_list) was picked: sync
-            # into it directly instead of creating a dedicated AH entity.
-            sync_manager = AhListSyncManager(hass, client, list_coordinator, target_entity_id)
-            sync_manager.async_setup()
-            entry.async_on_unload(sync_manager.async_unload)
-            coordinator.list_sync_manager = sync_manager
+            # An existing entity (e.g. todo.shopping_list) was picked: push
+            # into the AH list from there instead of creating a dedicated AH
+            # entity. Nothing is scheduled — the push only runs when the user
+            # calls the service or presses the button.
+            coordinator.list_sync_manager = AhListSyncManager(hass, client, list_coordinator, target_entity_id)
 
     entry.runtime_data = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_apply_options))

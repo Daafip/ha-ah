@@ -30,6 +30,7 @@ from .api import (
 )
 from .const import (
     CONF_LIST_SCAN_INTERVAL,
+    CONF_SYNC_TARGET_ENTITY,
     CONF_UPDATE_INTERVAL,
     DEFAULT_LIST_SCAN_INTERVAL,
     DEFAULT_UPDATE_INTERVAL_HOURS,
@@ -67,8 +68,15 @@ def update_interval_from_options(entry: AhConfigEntry) -> timedelta:
     return timedelta(hours=entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL_HOURS))
 
 
-def list_interval_from_options(entry: AhConfigEntry) -> timedelta:
-    """The configured shopping list poll interval, falling back to the 120 s default."""
+def list_interval_from_options(entry: AhConfigEntry) -> timedelta | None:
+    """The configured shopping list poll interval, falling back to the 120 s default.
+
+    None (no background polling at all) when the list is synced into an
+    existing todo entity: that push is one-way and only runs on an explicit
+    user action, so there is nothing for a poll to pick up.
+    """
+    if entry.options.get(CONF_SYNC_TARGET_ENTITY):
+        return None
     return timedelta(seconds=entry.options.get(CONF_LIST_SCAN_INTERVAL, DEFAULT_LIST_SCAN_INTERVAL))
 
 

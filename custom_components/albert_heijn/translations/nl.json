@@ -35,13 +35,13 @@
           "update_interval": "Bijwerkinterval (uren)",
           "list_enabled": "Boodschappenlijst synchroniseren",
           "list_scan_interval": "Scaninterval boodschappenlijst (seconden)",
-          "sync_target_entity": "Bestaande todo-lijst om mee te synchroniseren (optioneel)"
+          "sync_target_entity": "Bestaande todo-lijst om naar Albert Heijn te pushen (optioneel)"
         },
         "data_description": {
           "update_interval": "Hoe vaak het koopzegelsaldo wordt opgehaald. Het saldo verandert alleen als je boodschappen doet, dus houd dit bescheiden — de API is onofficieel.",
-          "list_enabled": "Toon de AH-boodschappenlijst (\"Mijn lijst\") en synchroniseer die met Home Assistant.",
-          "list_scan_interval": "Hoe vaak de boodschappenlijst wordt gecontroleerd op wijzigingen uit de AH-app. Alleen gebruikt zolang de synchronisatie aanstaat.",
-          "sync_target_entity": "Kies een bestaande todo-lijst, bijvoorbeeld de ingebouwde boodschappenlijst, om direct mee te synchroniseren in plaats van een aparte Albert Heijn-entiteit aan te maken. Laat leeg voor een eigen entiteit die je zelf koppelt."
+          "list_enabled": "Toon de AH-boodschappenlijst (\"Mijn lijst\") en zet de handmatige push ernaartoe aan.",
+          "list_scan_interval": "Hoe vaak de boodschappenlijst wordt gecontroleerd op wijzigingen uit de AH-app. Alleen gebruikt voor de eigen Albert Heijn-todo-entiteit; kies je hieronder een lijst, dan wordt er helemaal niet op de achtergrond gepold.",
+          "sync_target_entity": "Kies een bestaande todo-lijst, bijvoorbeeld de ingebouwde boodschappenlijst, om naar de Albert Heijn-lijst te pushen in plaats van een aparte Albert Heijn-entiteit aan te maken. De push gaat één kant op en gebeurt alleen als je op de sync-knop drukt of de actie Boodschappenlijst synchroniseren aanroept. Laat leeg voor een eigen entiteit die je zelf koppelt."
         }
       }
     }
@@ -84,6 +84,38 @@
       },
       "basket": {
         "name": "Winkelmandje"
+      }
+    },
+    "button": {
+      "sync_shopping_list": {
+        "name": "Boodschappenlijst synchroniseren"
+      }
+    }
+  },
+  "exceptions": {
+    "no_sync_target": {
+      "message": "Er is geen Albert Heijn-configuratie die een todo-lijst synchroniseert. Zet de boodschappenlijst aan en kies eerst een todo-lijst in de opties."
+    },
+    "entry_not_synced": {
+      "message": "Die Albert Heijn-configuratie is niet geladen of heeft geen todo-lijst om te synchroniseren. Kies eerst een todo-lijst in de opties."
+    },
+    "multiple_entries": {
+      "message": "Er zijn meerdere Albert Heijn-accounts ingesteld om te synchroniseren. Vul het veld 'Albert Heijn-account' in om te kiezen welke gepusht wordt."
+    }
+  },
+  "services": {
+    "sync_shopping_list": {
+      "name": "Boodschappenlijst synchroniseren",
+      "description": "Pusht een Home Assistant-todo-lijst naar de Albert Heijn-boodschappenlijst. Items die in Home Assistant openstaan worden aan de app toegevoegd; items die in Home Assistant zijn afgevinkt worden daar afgevinkt. Items die alleen in de AH-app staan blijven ongemoeid en er wordt nooit iets terug naar Home Assistant geschreven.",
+      "fields": {
+        "entity_id": {
+          "name": "Todo-lijst",
+          "description": "De lijst die gepusht wordt. Standaard de lijst die in de opties van de integratie is gekozen."
+        },
+        "config_entry_id": {
+          "name": "Albert Heijn-account",
+          "description": "Met welke Albert Heijn-configuratie gepusht wordt. Alleen nodig als er meerdere accounts staan ingesteld om te synchroniseren."
+        }
       }
     }
   }

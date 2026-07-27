@@ -35,13 +35,13 @@
           "update_interval": "Update interval (hours)",
           "list_enabled": "Sync shopping list",
           "list_scan_interval": "Shopping list scan interval (seconds)",
-          "sync_target_entity": "Existing todo list to sync with (optional)"
+          "sync_target_entity": "Existing to-do list to push to Albert Heijn (optional)"
         },
         "data_description": {
           "update_interval": "How often to fetch the koopzegels balance. The balance only changes when you shop, so keep this modest — the API is unofficial.",
-          "list_enabled": "Expose the AH shopping list (\"Mijn lijst\") and sync it with Home Assistant.",
-          "list_scan_interval": "How often to poll the shopping list for changes made in the AH app. Only used while the sync is enabled.",
-          "sync_target_entity": "Pick an existing todo list, e.g. the built-in Shopping list, to sync directly instead of creating a separate Albert Heijn entity. Leave empty to get a dedicated entity you can wire up yourself."
+          "list_enabled": "Expose the AH shopping list (\"Mijn lijst\") and enable the manual push into it.",
+          "list_scan_interval": "How often to poll the shopping list for changes made in the AH app. Only used for the dedicated Albert Heijn to-do entity; with a list picked below there is no background polling at all.",
+          "sync_target_entity": "Pick an existing to-do list, e.g. the built-in Shopping list, to push onto the Albert Heijn list instead of creating a separate Albert Heijn entity. Pushing is one-way and only happens when you press the sync button or call the Sync shopping list action. Leave empty to get a dedicated entity you can wire up yourself."
         }
       }
     }
@@ -84,6 +84,38 @@
       },
       "basket": {
         "name": "Basket"
+      }
+    },
+    "button": {
+      "sync_shopping_list": {
+        "name": "Sync shopping list"
+      }
+    }
+  },
+  "exceptions": {
+    "no_sync_target": {
+      "message": "No Albert Heijn entry is set up to sync a to-do list. Enable the shopping list and pick a to-do list in the integration options first."
+    },
+    "entry_not_synced": {
+      "message": "That Albert Heijn entry is not loaded or has no to-do list to sync. Pick a to-do list in its options first."
+    },
+    "multiple_entries": {
+      "message": "More than one Albert Heijn account is set up to sync. Add the 'Albert Heijn account' field to say which one to push."
+    }
+  },
+  "services": {
+    "sync_shopping_list": {
+      "name": "Sync shopping list",
+      "description": "Pushes a Home Assistant to-do list onto the Albert Heijn shopping list. Items open in Home Assistant are added to the app; items completed in Home Assistant are checked off there. Items that only exist in the AH app are left alone, and nothing is ever written back into Home Assistant.",
+      "fields": {
+        "entity_id": {
+          "name": "To-do list",
+          "description": "The list to push. Defaults to the list picked in the integration options."
+        },
+        "config_entry_id": {
+          "name": "Albert Heijn account",
+          "description": "Which Albert Heijn entry to push with. Only needed when more than one account is set up to sync."
+        }
       }
     }
   }

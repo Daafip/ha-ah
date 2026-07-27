@@ -5,6 +5,34 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-27
+
+### Changed
+
+- **Breaking (shopping list sync into an existing todo list):** the sync is now
+  one-way and manual. It pushes Home Assistant → Albert Heijn only, and only
+  when you ask for it. The continuous two-way sync did not hold up on longer
+  lists: every HA state change and every AH poll started a full reconcile,
+  each item was written as its own request, and the two directions kept
+  re-reading each other's half-finished work.
+- Nothing is written back into Home Assistant anymore: an item checked off or
+  deleted in the AH app no longer completes the HA item.
+- Items that only exist in the AH app, and check marks you set there, are left
+  alone. An item that is open in HA but already on the AH list is not touched.
+- No background polling at all in this mode: the AH list is read once, at the
+  moment you push. The list scan interval now only applies to the dedicated
+  `todo.albert_heijn_*` entity.
+
+### Added
+
+- `albert_heijn.sync_shopping_list` action, with optional `entity_id` (push a
+  different to-do list) and `config_entry_id` (pick the account). It optionally
+  returns what changed: `added`, `checked` and `unchanged`.
+- **Sync shopping list** button entity, running the same push — created only
+  when a to-do list to push is configured.
+- `AhApiClient.async_write_list_items()` writes a whole push in one merge PATCH
+  (batched at 25 items), instead of one request per item.
+
 ## [0.6.0] - 2026-07-21
 
 ### Added

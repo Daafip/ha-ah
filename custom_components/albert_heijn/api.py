@@ -23,6 +23,7 @@ from .const import (
     GRAPHQL_URL,
     KOOPZEGELS_OPERATION,
     KOOPZEGELS_QUERY,
+    LIST_WRITE_BATCH_SIZE,
     MEMBER_ID_OPERATION,
     MEMBER_ID_QUERY,
     MILES_OPERATION,
@@ -350,6 +351,18 @@ class AhApiClient:
     async def async_set_item_checked(self, item: AhListItem, checked: bool) -> None:
         """Check or uncheck one shopping list item (a merge on the same PATCH)."""
         await self._async_rest("PATCH", SHOPPINGLIST_ITEMS_URL, {"items": [_list_write_entry(item, checked=checked)]})
+
+    async def async_write_list_items(self, items: list[AhListItem]) -> None:
+        """Write several items at once, each with the checked state it carries.
+
+        Adding and checking are the same merge-by-description PATCH, so a whole
+        sync run travels in one call (or a few, for a long list: see
+        :data:`LIST_WRITE_BATCH_SIZE`) instead of one request per item.
+        """
+        for start in range(0, len(items), LIST_WRITE_BATCH_SIZE):
+            batch = items[start : start + LIST_WRITE_BATCH_SIZE]
+            payload = {"items": [_list_write_entry(item) for item in batch]}
+            await self._async_rest("PATCH", SHOPPINGLIST_ITEMS_URL, payload)
 
     async def async_delete_list_items(self, items: list[AhListItem]) -> None:
         """Delete items from the shopping list: a merge with quantity 0 removes them."""

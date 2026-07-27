@@ -1,0 +1,14 @@
+sync_shopping_list:
+  fields:
+    entity_id:
+      required: false
+      example: todo.shopping_list
+      selector:
+        entity:
+          filter:
+            - domain: todo
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: albert_heijn

@@ -2,6 +2,14 @@
 
 Implementation plan for the `Daafip/ha-ah` repo (HACS custom integration `albert_heijn`).
 
+> [!NOTE]
+> Historical: this plan was implemented in v0.5.0/v0.6.0 and then walked back in
+> v0.7.0. Syncing into an existing todo entity is now a **one-way, manual push**
+> (HA → AH, on the `albert_heijn.sync_shopping_list` action or the sync button) —
+> the continuous two-way sync did not hold up on longer lists. The dedicated
+> `todo.albert_heijn_*` entity still does full CRUD as described below. See the
+> CHANGELOG and the README's shopping list section for the current behaviour.
+
 ## Goal
 
 Expose the Albert Heijn shopping list ("Mijn lijst" in the AH app) as a Home Assistant

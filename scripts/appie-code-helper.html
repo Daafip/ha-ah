@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appie login code helper</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #666666;
+    --border: #d0d0d0;
+    --accent: #00a0e3; /* AH-ish blue, not a brand asset */
+    --mono-bg: #f4f4f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a1a;
+      --fg: #f0f0f0;
+      --muted: #aaaaaa;
+      --border: #3a3a3a;
+      --mono-bg: #262626;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 1.5rem;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    max-width: 40rem;
+    margin-inline: auto;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.3rem; margin-bottom: 0.25rem; }
+  p.lead { color: var(--muted); margin-top: 0; }
+  textarea {
+    width: 100%;
+    min-height: 5rem;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.95rem;
+    padding: 0.6rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--mono-bg);
+    color: var(--fg);
+  }
+  .result {
+    margin-top: 1rem;
+    display: none;
+  }
+  .result.visible { display: block; }
+  .code-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+  input[readonly] {
+    flex: 1;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 1.1rem;
+    padding: 0.6rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--accent);
+    background: var(--mono-bg);
+    color: var(--fg);
+  }
+  button {
+    padding: 0.6rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #ffffff;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:active { opacity: 0.8; }
+  .hint { font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; }
+  .status { font-size: 0.9rem; margin-top: 0.4rem; min-height: 1.2em; }
+  details { margin-top: 2rem; color: var(--muted); font-size: 0.9rem; }
+  summary { cursor: pointer; }
+</style>
+</head>
+<body>
+  <h1>Appie login code helper</h1>
+  <p class="lead">
+    Paste whatever text contains the failed <code>appie://login-exit?code=...</code>
+    redirect (or just the code itself) below. This runs entirely in your browser —
+    nothing is sent anywhere.
+  </p>
+
+  <textarea id="input" placeholder="appie://login-exit?code=... (or just the code)" autofocus></textarea>
+
+  <div class="result" id="result">
+    <div class="code-row">
+      <input id="code" readonly>
+      <button id="copy">Copy</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <details>
+    <summary>This page can't catch the redirect automatically — why?</summary>
+    <p>
+      <code>appie://login-exit?code=...</code> is a custom URL scheme, not a web
+      address. When your browser hits it, it hands off to whatever app is
+      registered for <code>appie://</code> at the OS level — no HTML page is ever
+      loaded, so nothing hosted (including this page) can intercept that step.
+      This page only helps with the last bit: turning whatever text you can get
+      your hands on into a clean, copyable code.
+    </p>
+    <p>
+      If your browser doesn't show the failed URL anywhere (no error page, no
+      address bar text), the most reliable way to get it on a phone is remote
+      debugging from a computer over USB: <em>chrome://inspect</em> for Android
+      Chrome, or Safari's <em>Develop → [your iPhone]</em> menu on macOS — both
+      show the Network tab, where the failed request's <code>Location</code>
+      header is the full <code>appie://...</code> URL, regardless of what the
+      phone's screen shows.
+    </p>
+  </details>
+
+  <script>
+    function extractCode(raw) {
+      raw = raw.trim();
+      if (!raw.includes("code=")) return raw;
+      try {
+        const url = new URL(raw);
+        const fromParams = url.searchParams.get("code");
+        if (fromParams) return fromParams;
+      } catch (err) {
+        // Fall through to the regex fallback below.
+      }
+      const match = raw.match(/[?&]code=([^&\s]+)/);
+      return match ? decodeURIComponent(match[1]) : raw;
+    }
+
+    const input = document.getElementById("input");
+    const result = document.getElementById("result");
+    const codeField = document.getElementById("code");
+    const status = document.getElementById("status");
+    const copyButton = document.getElementById("copy");
+
+    function update() {
+      const raw = input.value;
+      if (!raw.trim()) {
+        result.classList.remove("visible");
+        return;
+      }
+      codeField.value = extractCode(raw);
+      result.classList.add("visible");
+      status.textContent = "";
+    }
+
+    async function copyCode() {
+      codeField.select();
+      codeField.setSelectionRange(0, codeField.value.length);
+      try {
+        await navigator.clipboard.writeText(codeField.value);
+        status.textContent = "Copied.";
+        return;
+      } catch (err) {
+        // Clipboard API needs a secure context; fall back below.
+      }
+      try {
+        document.execCommand("copy");
+        status.textContent = "Copied.";
+      } catch (err) {
+        status.textContent = "Couldn't copy automatically — it's selected, use your keyboard/menu to copy.";
+      }
+    }
+
+    input.addEventListener("input", update);
+    copyButton.addEventListener("click", copyCode);
+  </script>
+</body>
+</html>
