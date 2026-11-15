@@ -20,6 +20,8 @@ from .const import (
     DEFAULT_HEADERS,
     DELIVERIES_OPERATION,
     DELIVERIES_QUERY,
+    DELIVERY_DETAILS_OPERATION,
+    DELIVERY_DETAILS_QUERY,
     GRAPHQL_URL,
     KOOPZEGELS_OPERATION,
     KOOPZEGELS_QUERY,
@@ -42,6 +44,8 @@ from .const import (
     TOKEN_EXPIRY_MARGIN,
     TOKEN_REFRESH_URL,
     TOKEN_URL,
+    TRACK_AND_TRACE_OPERATION,
+    TRACK_AND_TRACE_QUERY,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -107,6 +111,25 @@ class DeliveryInfo:
     start_time: str | None  # HH:MM
     end_time: str | None
     status: str | None
+    # Only filled by the detailed query that the delivery fast lane uses.
+    status_description: str | None = None
+    message: str | None = None
+    estimated: str | None = None  # estimated arrival, as the API returns it
+
+
+@dataclass(frozen=True)
+class TrackAndTrace:
+    """Track & trace of one order: what the app shows shortly before delivery.
+
+    Times are the raw API strings; the coordinator turns them into datetimes.
+    """
+
+    type: str | None = None
+    message: str | None = None
+    eta_type: str | None = None
+    eta_start: str | None = None
+    eta_end: str | None = None
+    delivered_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -146,13 +169,23 @@ def parse_receipts(data: dict[str, Any]) -> list[ReceiptSummary]:
         raise AhApiError(f"Unexpected receipts response: {err!r}") from err
 
 
+def _text(value: Any) -> str | None:
+    """A non-empty string, or None: the API mixes nulls and empty strings."""
+    return str(value) if value not in (None, "") else None
+
+
 def parse_deliveries(data: dict[str, Any]) -> list[DeliveryInfo]:
-    """Map the fulfillments GraphQL payload onto :class:`DeliveryInfo` items."""
+    """Map the fulfillments GraphQL payload onto :class:`DeliveryInfo` items.
+
+    Handles both the plain and the detailed query; the extra fields of the
+    latter stay None when they are absent.
+    """
     try:
         fulfillments = (data.get("orderFulfillments") or {}).get("result") or []
         deliveries = []
         for item in fulfillments:
-            slot = ((item.get("delivery") or {}).get("slot")) or {}
+            delivery = item.get("delivery") or {}
+            slot = delivery.get("slot") or {}
             if not slot.get("date"):
                 continue
             deliveries.append(
@@ -161,12 +194,38 @@ def parse_deliveries(data: dict[str, Any]) -> list[DeliveryInfo]:
                     date=str(slot["date"]),
                     start_time=slot.get("startTime"),
                     end_time=slot.get("endTime"),
-                    status=(item.get("delivery") or {}).get("status"),
+                    status=delivery.get("status"),
+                    status_description=_text(item.get("statusDescription")),
+                    message=_text(delivery.get("deliveryMessage")),
+                    estimated=_text((delivery.get("eta") or {}).get("estimated")),
                 )
             )
         return deliveries
-    except (KeyError, TypeError, ValueError) as err:
+    except (AttributeError, KeyError, TypeError, ValueError) as err:
         raise AhApiError(f"Unexpected fulfillments response: {err!r}") from err
+
+
+def parse_track_and_trace(data: dict[str, Any]) -> TrackAndTrace | None:
+    """Map the order track & trace payload onto :class:`TrackAndTrace`.
+
+    None when the order has no track & trace (yet).
+    """
+    try:
+        trace = ((data.get("order") or {}).get("delivery") or {}).get("trackAndTraceV2")
+        if not trace:
+            return None
+        eta = trace.get("etaBlock") or {}
+        eta_range = eta.get("range") or {}
+        return TrackAndTrace(
+            type=_text(trace.get("type")),
+            message=_text(trace.get("message")),
+            eta_type=_text(eta.get("type")),
+            eta_start=_text(eta_range.get("start")),
+            eta_end=_text(eta_range.get("end")),
+            delivered_at=_text(trace.get("realisedDeliveryTime")),
+        )
+    except (AttributeError, TypeError) as err:
+        raise AhApiError(f"Unexpected track and trace response: {err!r}") from err
 
 
 def parse_koopzegels(data: dict[str, Any]) -> KoopzegelsData:
@@ -281,10 +340,22 @@ class AhApiClient:
         )
         return parse_receipts(data)
 
-    async def async_get_deliveries(self) -> list[DeliveryInfo]:
-        """Fetch planned/known deliveries from order fulfillments."""
-        data = await self._async_graphql(DELIVERIES_OPERATION, DELIVERIES_QUERY)
+    async def async_get_deliveries(self, detailed: bool = False) -> list[DeliveryInfo]:
+        """Fetch planned/known deliveries from order fulfillments.
+
+        ``detailed`` also asks for the delivery message and the estimated
+        arrival, for the delivery fast lane.
+        """
+        if detailed:
+            data = await self._async_graphql(DELIVERY_DETAILS_OPERATION, DELIVERY_DETAILS_QUERY)
+        else:
+            data = await self._async_graphql(DELIVERIES_OPERATION, DELIVERIES_QUERY)
         return parse_deliveries(data)
+
+    async def async_get_track_and_trace(self, order_id: int) -> TrackAndTrace | None:
+        """Fetch the live track & trace (ETA window, message) of one order."""
+        data = await self._async_graphql(TRACK_AND_TRACE_OPERATION, TRACK_AND_TRACE_QUERY, {"orderId": order_id})
+        return parse_track_and_trace(data)
 
     async def async_get_miles(self) -> int:
         """Fetch the Air Miles balance."""

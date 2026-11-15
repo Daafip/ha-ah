@@ -11,6 +11,7 @@ from custom_components.albert_heijn.api import (
     KoopzegelsData,
     ReceiptSummary,
     SavingGoalInfo,
+    TrackAndTrace,
 )
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -24,6 +25,10 @@ TOKEN_RESPONSE = load_fixture("token.json")
 KOOPZEGELS_RESPONSE = load_fixture("koopzegels.json")
 RECEIPTS_RESPONSE = load_fixture("receipts.json")
 DELIVERIES_RESPONSE = load_fixture("deliveries.json")
+# The value formats in these two are assumptions (ISO datetimes, status names):
+# only the field names were validated against the live schema.
+DELIVERY_DETAILS_RESPONSE = load_fixture("delivery_details.json")
+TRACK_AND_TRACE_RESPONSE = load_fixture("track_and_trace.json")
 LIST_ITEMS_RESPONSE = load_fixture("list_items.json")
 
 REFRESH_TOKEN = TOKEN_RESPONSE["refresh_token"]
@@ -54,6 +59,26 @@ DELIVERIES = [
     DeliveryInfo(order_id=444, date="2026-01-02", start_time="08:00", end_time="10:00", status="DELIVERED"),
 ]
 
+# A delivery that is under way at LIVE_NOW, as the detailed query reports it.
+LIVE_NOW = "2026-11-15T14:20:00+00:00"  # 15:20 in Amsterdam, slot 15:00-17:00
+ETA_MESSAGE = "Onze bezorger verwacht tussen 15:15 en 15:45 uur bij je te zijn."
+LIVE_DELIVERY = DeliveryInfo(
+    order_id=777,
+    date="2026-11-15",
+    start_time="15:00",
+    end_time="17:00",
+    status="IN_TRANSIT",
+    status_description="Onderweg",
+    message=ETA_MESSAGE,
+    estimated="2026-11-15T15:30:00+01:00",
+)
+TRACK_AND_TRACE = TrackAndTrace(
+    type="ON_THE_WAY",
+    message=ETA_MESSAGE,
+    eta_type="RANGE",
+    eta_start="2026-11-15T15:15:00+01:00",
+    eta_end="2026-11-15T15:45:00+01:00",
+)
 
 MILES = 1234
 PREMIUM_SAVINGS = 56.78
@@ -73,6 +98,7 @@ def make_client() -> AsyncMock:
     client.async_get_koopzegels.return_value = KOOPZEGELS_DATA
     client.async_get_receipts.return_value = RECEIPTS
     client.async_get_deliveries.return_value = DELIVERIES
+    client.async_get_track_and_trace.return_value = None
     client.async_get_member_id.return_value = MEMBER_ID
     client.async_get_miles.return_value = MILES
     client.async_get_premium_savings.return_value = PREMIUM_SAVINGS

@@ -15,3 +15,6 @@ dist
 # vscode
 .vscode
 TODO
+
+# raw API captures from scripts/discover_delivery.py (order data)
+delivery-discovery*.jsonl

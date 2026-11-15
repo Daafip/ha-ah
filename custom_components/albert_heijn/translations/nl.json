@@ -84,6 +84,12 @@
       },
       "basket": {
         "name": "Winkelmandje"
+      },
+      "delivery_eta": {
+        "name": "Verwachte bezorgtijd"
+      },
+      "delivery_status": {
+        "name": "Bezorgstatus"
       }
     },
     "button": {

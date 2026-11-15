@@ -179,6 +179,81 @@ query HaOrderFulfillments {
 }
 """
 
+# --- Delivery tracking (the live ETA the app shows shortly before delivery) ---
+# Field NAMES validated against the live schema on 2026-11-15. That needs no
+# login: POST {"clientId": "appie"} to /mobile-auth/v1/auth/token/anonymous and
+# send the query with that token. The gateway validates before it authorises,
+# so an unknown field comes back as HTTP 400 naming it, and a valid query as
+# HTTP 200 with null data.
+# - The January 2026 appie-go schema dump is stale here: FulfillmentDeliveryEta
+#   lost status/lower/upper and only has `estimated` left. The 30-minute window
+#   lives on order(id).delivery.trackAndTraceV2.etaBlock.range.
+# - The VALUES only exist while a delivery is under way and their formats are
+#   not pinned down, so the datetime handling in coordinator.py accepts both
+#   ISO datetimes and bare HH:MM times. scripts/discover_delivery.py captures
+#   the real thing on a delivery day.
+
+# The fulfillment list plus the delivery message and estimate. Kept apart from
+# DELIVERIES_QUERY so that a schema change in the extras cannot take the
+# calendar and the next-delivery sensor down with it.
+DELIVERY_DETAILS_OPERATION: Final = "HaOrderFulfillmentDetails"
+DELIVERY_DETAILS_QUERY: Final = """\
+query HaOrderFulfillmentDetails {
+  orderFulfillments {
+    result {
+      orderId
+      transactionCompleted
+      statusDescription
+      delivery {
+        status
+        deliveryMessage
+        slot {
+          date
+          startTime
+          endTime
+        }
+        eta {
+          estimated
+        }
+      }
+    }
+  }
+}
+"""
+
+TRACK_AND_TRACE_OPERATION: Final = "HaOrderTrackAndTrace"
+TRACK_AND_TRACE_QUERY: Final = """\
+query HaOrderTrackAndTrace($orderId: Int!) {
+  order(id: $orderId) {
+    delivery {
+      trackAndTraceV2 {
+        type
+        message
+        etaBlock {
+          type
+          range {
+            start
+            end
+          }
+        }
+        realisedDeliveryTime
+      }
+    }
+  }
+}
+"""
+
+# The delivery fast lane: poll quickly from DELIVERY_LIVE_LEAD before the slot
+# starts until the order is delivered, or until DELIVERY_LIVE_GRACE after the
+# slot ended (drivers run late). Outside that window it idles at the regular
+# update interval.
+DELIVERY_LIVE_INTERVAL: Final = timedelta(minutes=3)
+DELIVERY_LIVE_LEAD: Final = timedelta(hours=1)
+DELIVERY_LIVE_GRACE: Final = timedelta(hours=1)
+# Statuses after which nothing more will happen. A guess until a delivery has
+# been captured; the slot-end + grace limit ends the fast lane regardless.
+DELIVERY_DONE_STATUSES: Final = frozenset({"DELIVERED", "CANCELLED", "CANCELED"})
+
 # --- Shopping list ("Mijn lijst") ---
 # CONFIRMED against the live API on 2026-07-14 (scripts/discover_list.py):
 # - The shopping list is one per-account resource in the shoppinglist v2

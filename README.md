@@ -17,6 +17,8 @@ Albert Heijn digital **koopzegels** as a sensor.
 | **Spent this month** | Sum of this calendar month's in-store receipts |
 | **Next delivery** | Timestamp of the next planned delivery slot |
 | **Deliveries** (calendar) | All delivery slots as calendar events |
+| **Delivery ETA** | When the driver expects to arrive, once AH narrows the slot down — see [Delivery tracking](#delivery-tracking) |
+| **Delivery status** | Status of the current or next delivery, with AH's track & trace message |
 | **Air Miles** | Air Miles balance (if linked) |
 | **Premium savings** | Total saved through the Premium subscription |
 | **Open settlements** | Refunds owed to you |
@@ -37,6 +39,28 @@ The koopzegels sensor carries attributes for the stamp counts:
 
 The receipt and delivery sensors are best-effort: when those endpoints fail or don't
 apply to your account, they show *unknown* while koopzegels keeps working.
+
+### Delivery tracking
+
+On the day itself the AH app narrows the delivery slot down to a half-hour window
+("Onze bezorger verwacht tussen 15:15 en 15:45 uur bij je te zijn"). **Delivery ETA** and
+**Delivery status** follow that. They idle at the regular update interval, and poll every
+3 minutes from an hour before the slot starts until the order is delivered (or, when the
+driver runs late, until an hour after the slot ended).
+
+| Entity | State | Attributes |
+| --- | --- | --- |
+| **Delivery ETA** | Start of the expected arrival window; *unknown* until AH publishes one | `eta_start`, `eta_end`, `message` (AH's own wording), `order_id` |
+| **Delivery status** | The delivery status as the API names it | `status_description`, `tracking_type`, `message`, `delivered_at`, `live` (fast polling active), `date`, `start_time`, `end_time`, `order_id` |
+
+See [the push notification example](#automation--push-notification-with-the-delivery-eta)
+for getting the window on your phone.
+
+> The field names are validated against the live API, but the values only exist while a
+> delivery is under way and have not been captured yet. Treat the status names as raw API
+> strings, and if the ETA stays *unknown* during a delivery, run
+> `scripts/discover_delivery.py` (see [Development](#development)) and open an issue with
+> its output.
 
 ## Installation
 
@@ -266,6 +290,38 @@ actions:
 mode: single
 ```
 
+### Automation — push notification with the delivery ETA
+
+Fires when AH publishes the arrival window, and again when it shifts:
+
+```yaml
+alias: "AH: bezorger onderweg"
+triggers:
+  - trigger: state
+    entity_id: sensor.albert_heijn_delivery_eta
+    not_from: [unavailable]
+    not_to: [unavailable, unknown]
+actions:
+  - action: notify.mobile_app_<phone>
+    data:
+      title: "🛒 Albert Heijn"
+      message: >-
+        {% set start = state_attr(trigger.entity_id, 'eta_start') %}
+        {% set end = state_attr(trigger.entity_id, 'eta_end') %}
+        {% if end %}
+        Bezorger verwacht tussen {{ start | as_timestamp | timestamp_custom('%H:%M') }}
+        en {{ end | as_timestamp | timestamp_custom('%H:%M') }}.
+        {% else %}
+        Bezorger verwacht rond {{ start | as_timestamp | timestamp_custom('%H:%M') }}.
+        {% endif %}
+mode: single
+```
+
+To pass on AH's own sentence instead, use
+`{{ state_attr(trigger.entity_id, 'message') }}` as the message. For a ping on every
+status change (packed, on its way, delivered), trigger on
+`sensor.albert_heijn_delivery_status` the same way.
+
 ### Complex automation — store-zone notification
 
 Define a zone per AH store you visit (*Settings → Areas, labels & zones → Zones*, or YAML):
@@ -354,7 +410,12 @@ To verify against the real API with your own account (one-time code, nothing sto
 ```bash
 uv run python scripts/discover_koopzegels.py "appie://login-exit?code=..."
 uv run python scripts/discover_list.py "appie://login-exit?code=..."   # shopping list schema
+uv run python scripts/discover_delivery.py "appie://login-exit?code=..."   # live delivery tracking
 ```
+
+`discover_delivery.py` keeps polling the raw track & trace data of your upcoming orders
+and prints every change, so run it on a delivery day, from before the slot until the
+groceries are in. It asks for no address fields and masks order ids.
 
 `discover_list.py` verifies the shopping list CRUD against the live API; add
 `--roundtrip` to exercise add/check/uncheck/delete with a self-cleaning test item.

@@ -76,6 +76,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AhConfigEntry) -> bool:
     )
     coordinator = AhCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
+    # Best-effort, like the shopping list: a failed first fetch leaves the two
+    # delivery tracking sensors unavailable until a later poll succeeds.
+    await coordinator.delivery_coordinator.async_refresh()
 
     if entry.options.get(CONF_LIST_ENABLED, False):
         list_coordinator = AhListCoordinator(hass, entry, client)

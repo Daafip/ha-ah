@@ -45,6 +45,12 @@
       },
       "basket": {
         "default": "mdi:basket"
+      },
+      "delivery_eta": {
+        "default": "mdi:truck-fast"
+      },
+      "delivery_status": {
+        "default": "mdi:truck-check"
       }
     }
   }

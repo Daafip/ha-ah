@@ -19,6 +19,7 @@ TO_REDACT = {CONF_REFRESH_TOKEN, CONF_MEMBER_ID, "transaction_id", "order_id"}
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: AhConfigEntry) -> dict[str, Any]:
     """Return redacted diagnostics for a config entry."""
     coordinator = entry.runtime_data
+    delivery_coordinator = coordinator.delivery_coordinator
     list_coordinator = coordinator.list_coordinator
     diagnostics: dict[str, Any] = {
         "entry_data": async_redact_data(dict(entry.data), TO_REDACT),
@@ -26,6 +27,11 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: AhConfi
         "update_interval": str(coordinator.update_interval),
         "last_update_success": coordinator.last_update_success,
         "data": async_redact_data(asdict(coordinator.data), TO_REDACT) if coordinator.data else None,
+        "delivery_update_interval": str(delivery_coordinator.update_interval),
+        "delivery_last_update_success": delivery_coordinator.last_update_success,
+        "delivery": (
+            async_redact_data(asdict(delivery_coordinator.data), TO_REDACT) if delivery_coordinator.data else None
+        ),
     }
     if list_coordinator is not None:
         diagnostics["list_update_interval"] = str(list_coordinator.update_interval)

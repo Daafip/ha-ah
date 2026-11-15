@@ -5,6 +5,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-15
+
+### Added
+
+- **Delivery ETA** sensor: the half-hour arrival window the AH app shows on the
+  delivery day ("Onze bezorger verwacht tussen 15:15 en 15:45 uur bij je te
+  zijn"), as a timestamp with `eta_start`, `eta_end` and `message` attributes.
+  Made for a push notification automation; the README has an example.
+- **Delivery status** sensor: status of the current or next delivery, with the
+  track & trace type and message as attributes.
+- A separate delivery coordinator with an adaptive interval: it idles at the
+  regular update interval, and polls every 3 minutes from an hour before the
+  slot starts until the order is delivered or the slot ended an hour ago.
+  The calendar and **Next delivery** keep their own, unchanged query.
+- `scripts/discover_delivery.py` captures the raw track & trace data during a
+  delivery. The field names are validated against the live schema; the value
+  formats and status names still have to be confirmed with such a capture.
+- Diagnostics include the delivery tracking state.
+
 ## [0.7.0] - 2026-07-27
 
 ### Changed

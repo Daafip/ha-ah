@@ -1,0 +1,20 @@
+{
+  "data": {
+    "order": {
+      "delivery": {
+        "trackAndTraceV2": {
+          "type": "ON_THE_WAY",
+          "message": "Onze bezorger verwacht tussen 15:15 en 15:45 uur bij je te zijn.",
+          "etaBlock": {
+            "type": "RANGE",
+            "range": {
+              "start": "2026-11-15T15:15:00+01:00",
+              "end": "2026-11-15T15:45:00+01:00"
+            }
+          },
+          "realisedDeliveryTime": null
+        }
+      }
+    }
+  }
+}

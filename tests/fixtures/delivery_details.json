@@ -1,0 +1,40 @@
+{
+  "data": {
+    "orderFulfillments": {
+      "result": [
+        {
+          "orderId": 777,
+          "transactionCompleted": false,
+          "statusDescription": "Onderweg",
+          "delivery": {
+            "status": "IN_TRANSIT",
+            "deliveryMessage": "Onze bezorger verwacht tussen 15:15 en 15:45 uur bij je te zijn.",
+            "slot": {
+              "date": "2026-11-15",
+              "startTime": "15:00",
+              "endTime": "17:00"
+            },
+            "eta": {
+              "estimated": "2026-11-15T15:30:00+01:00"
+            }
+          }
+        },
+        {
+          "orderId": 555,
+          "transactionCompleted": false,
+          "statusDescription": "",
+          "delivery": {
+            "status": "PLANNED",
+            "deliveryMessage": null,
+            "slot": {
+              "date": "2099-01-05",
+              "startTime": "18:00",
+              "endTime": "20:00"
+            },
+            "eta": null
+          }
+        }
+      ]
+    }
+  }
+}

@@ -17,6 +17,7 @@ from custom_components.albert_heijn.api import (
     parse_koopzegels,
     parse_list_items,
     parse_receipts,
+    parse_track_and_trace,
 )
 from custom_components.albert_heijn.const import (
     GRAPHQL_URL,
@@ -28,12 +29,17 @@ from custom_components.albert_heijn.const import (
 
 from .const import (
     DELIVERIES_RESPONSE,
+    DELIVERY_DETAILS_RESPONSE,
+    ETA_MESSAGE,
     KOOPZEGELS_RESPONSE,
     LIST_ITEMS_RESPONSE,
+    LIVE_DELIVERY,
     MEMBER_RESPONSE,
     RECEIPTS_RESPONSE,
     REFRESH_TOKEN,
     TOKEN_RESPONSE,
+    TRACK_AND_TRACE,
+    TRACK_AND_TRACE_RESPONSE,
 )
 
 
@@ -220,6 +226,103 @@ def test_parse_receipts_bad_shape_raises():
 def test_parse_deliveries_skips_slotless_and_tolerates_empty():
     assert parse_deliveries({"orderFulfillments": {"result": [{"orderId": 1, "delivery": {"slot": None}}]}}) == []
     assert parse_deliveries({"orderFulfillments": None}) == []
+
+
+def _graphql_request(mock) -> dict:
+    """The JSON body of the (single) GraphQL call made through ``mock``."""
+    (call,) = mock.requests[("POST", URL(GRAPHQL_URL))]
+    return call.kwargs["json"]
+
+
+async def test_get_deliveries_plain_query_leaves_details_empty(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(GRAPHQL_URL, payload=DELIVERIES_RESPONSE)
+        deliveries = await client.async_get_deliveries()
+        request = _graphql_request(mock)
+    assert request["operationName"] == "HaOrderFulfillments"
+    assert "deliveryMessage" not in request["query"]
+    assert deliveries[0].message is None
+    assert deliveries[0].estimated is None
+    assert deliveries[0].status_description is None
+
+
+async def test_get_deliveries_detailed(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(GRAPHQL_URL, payload=DELIVERY_DETAILS_RESPONSE)
+        deliveries = await client.async_get_deliveries(detailed=True)
+        request = _graphql_request(mock)
+    assert request["operationName"] == "HaOrderFulfillmentDetails"
+    assert "deliveryMessage" in request["query"]
+    assert deliveries[0] == LIVE_DELIVERY
+    # Nulls and empty strings both mean "nothing to show".
+    assert deliveries[1].message is None
+    assert deliveries[1].estimated is None
+    assert deliveries[1].status_description is None
+
+
+async def test_get_track_and_trace(session):
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(GRAPHQL_URL, payload=TRACK_AND_TRACE_RESPONSE)
+        tracking = await client.async_get_track_and_trace(777)
+        request = _graphql_request(mock)
+    assert request["operationName"] == "HaOrderTrackAndTrace"
+    assert request["variables"] == {"orderId": 777}
+    assert tracking == TRACK_AND_TRACE
+
+
+async def test_get_track_and_trace_graphql_error_raises(session):
+    # What the gateway answers for an order it will not show.
+    client = AhApiClient(session, refresh_token=REFRESH_TOKEN)
+    body = {"data": {"order": None}, "errors": [{"message": "Subgraph errors redacted", "path": ["order"]}]}
+    with aioresponses() as mock:
+        mock.post(TOKEN_REFRESH_URL, payload=TOKEN_RESPONSE)
+        mock.post(GRAPHQL_URL, payload=body)
+        with pytest.raises(AhApiError):
+            await client.async_get_track_and_trace(777)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"order": None},
+        {"order": {"delivery": None}},
+        {"order": {"delivery": {"trackAndTraceV2": None}}},
+    ],
+)
+def test_parse_track_and_trace_none_when_absent(data):
+    assert parse_track_and_trace(data) is None
+
+
+def test_parse_track_and_trace_without_eta_block():
+    data = {"order": {"delivery": {"trackAndTraceV2": {"type": "PACKING", "message": "", "etaBlock": None}}}}
+    tracking = parse_track_and_trace(data)
+    assert tracking.type == "PACKING"
+    assert tracking.message is None
+    assert tracking.eta_start is None
+    assert tracking.eta_end is None
+    assert tracking.delivered_at is None
+
+
+def test_parse_track_and_trace_delivered():
+    trace = {"type": "DELIVERED", "message": ETA_MESSAGE, "realisedDeliveryTime": "2026-11-15T15:31:00+01:00"}
+    tracking = parse_track_and_trace({"order": {"delivery": {"trackAndTraceV2": trace}}})
+    assert tracking.delivered_at == "2026-11-15T15:31:00+01:00"
+
+
+def test_parse_track_and_trace_bad_shape_raises():
+    with pytest.raises(AhApiError):
+        parse_track_and_trace({"order": {"delivery": {"trackAndTraceV2": ["not", "an", "object"]}}})
+
+
+def test_parse_deliveries_bad_shape_raises():
+    with pytest.raises(AhApiError):
+        parse_deliveries({"orderFulfillments": {"result": ["not an object"]}})
 
 
 async def test_get_miles(session):

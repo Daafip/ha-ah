@@ -84,6 +84,12 @@
       },
       "basket": {
         "name": "Basket"
+      },
+      "delivery_eta": {
+        "name": "Delivery ETA"
+      },
+      "delivery_status": {
+        "name": "Delivery status"
       }
     },
     "button": {

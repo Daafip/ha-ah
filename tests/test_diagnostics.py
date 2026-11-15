@@ -39,6 +39,11 @@ async def test_diagnostics_redacts_secrets(hass: HomeAssistant):
     assert diagnostics["options"] == {CONF_UPDATE_INTERVAL: 12}
     assert diagnostics["last_update_success"] is True
     assert diagnostics["data"]["koopzegels"]["payout"] == 510.7
+    assert diagnostics["delivery_last_update_success"] is True
+    assert diagnostics["delivery_update_interval"] == "12:00:00"  # idle: the regular interval
+    assert diagnostics["delivery"]["delivery"]["order_id"] == "**REDACTED**"
+    assert diagnostics["delivery"]["delivery"]["status"] == "PLANNED"
+    assert diagnostics["delivery"]["live"] is False
     # List sync is off: no list keys at all.
     assert "list_items" not in diagnostics
 

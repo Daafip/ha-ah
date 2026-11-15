@@ -9,10 +9,10 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, Sen
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .const import CONF_MEMBER_ID, DOMAIN
-from .coordinator import AhConfigEntry, AhCoordinator, slot_start
+from .coordinator import AhConfigEntry, AhCoordinator, AhDeliveryCoordinator, AhDeliveryData, slot_start
 
 
 async def async_setup_entry(
@@ -34,17 +34,19 @@ async def async_setup_entry(
             AhSettlementsSensor(coordinator, member_id),
             AhSavingGoalSensor(coordinator, member_id),
             AhBasketSensor(coordinator, member_id),
+            AhDeliveryEtaSensor(coordinator.delivery_coordinator, member_id),
+            AhDeliveryStatusSensor(coordinator.delivery_coordinator, member_id),
         ]
     )
 
 
-class AhSensor(CoordinatorEntity[AhCoordinator], SensorEntity):
+class _AhBaseSensor[CoordinatorT: DataUpdateCoordinator[Any]](CoordinatorEntity[CoordinatorT], SensorEntity):
     """Base sensor: one AH account device, unique id per translation key."""
 
     _attr_has_entity_name = True
     _attr_attribution = "Data from the unofficial Albert Heijn API"
 
-    def __init__(self, coordinator: AhCoordinator, member_id: str) -> None:
+    def __init__(self, coordinator: CoordinatorT, member_id: str) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{member_id}_{self._attr_translation_key}"
         self._attr_device_info = DeviceInfo(
@@ -53,6 +55,19 @@ class AhSensor(CoordinatorEntity[AhCoordinator], SensorEntity):
             manufacturer="Albert Heijn",
             entry_type=DeviceEntryType.SERVICE,
         )
+
+
+class AhSensor(_AhBaseSensor[AhCoordinator]):
+    """A sensor fed by the regular poll."""
+
+
+class AhDeliverySensor(_AhBaseSensor[AhDeliveryCoordinator]):
+    """A sensor fed by the delivery fast lane."""
+
+    @property
+    def _data(self) -> AhDeliveryData:
+        """The coordinator data; empty while the first fetch has not succeeded."""
+        return self.coordinator.data or AhDeliveryData()
 
 
 class AhKoopzegelsSensor(AhSensor):
@@ -244,3 +259,60 @@ class AhBasketSensor(AhSensor):
         """Number of items in the basket."""
         basket = self.coordinator.data.basket
         return {"quantity": basket.quantity} if basket else {}
+
+
+class AhDeliveryEtaSensor(AhDeliverySensor):
+    """When the driver expects to arrive, once AH narrows the slot down."""
+
+    _attr_translation_key = "delivery_eta"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Start of the expected arrival window; None until AH publishes one."""
+        return self._data.eta_start
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """The arrival window and AH's own wording of it."""
+        data = self._data
+        if (start := data.eta_start) is None or data.delivery is None:
+            return {}
+        end = data.eta_end
+        return {
+            "eta_start": start.isoformat(),
+            "eta_end": end.isoformat() if end else None,
+            "message": data.message,
+            "order_id": data.delivery.order_id,
+        }
+
+
+class AhDeliveryStatusSensor(AhDeliverySensor):
+    """Status of the current or next delivery, refreshed quickly while it is under way."""
+
+    _attr_translation_key = "delivery_status"
+
+    @property
+    def native_value(self) -> str | None:
+        """The delivery status as the API names it."""
+        delivery = self._data.delivery
+        return delivery.status if delivery else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Track & trace details; ``live`` tells whether the fast poll is running."""
+        data = self._data
+        if (delivery := data.delivery) is None:
+            return {}
+        tracking = data.tracking
+        return {
+            "status_description": delivery.status_description,
+            "tracking_type": tracking.type if tracking else None,
+            "message": data.message,
+            "delivered_at": tracking.delivered_at if tracking else None,
+            "live": data.live,
+            "date": delivery.date,
+            "start_time": delivery.start_time,
+            "end_time": delivery.end_time,
+            "order_id": delivery.order_id,
+        }
