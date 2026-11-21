@@ -18,6 +18,7 @@ Albert Heijn digital **koopzegels** as a sensor.
 | **Next delivery** | Timestamp of the next planned delivery slot |
 | **Deliveries** (calendar) | All delivery slots as calendar events |
 | **Delivery ETA** | When the driver expects to arrive, once AH narrows the slot down — see [Delivery tracking](#delivery-tracking) |
+| **Delivery ETA end** | End of that arrival window |
 | **Delivery status** | Status of the current or next delivery, with AH's track & trace message |
 | **Air Miles** | Air Miles balance (if linked) |
 | **Premium savings** | Total saved through the Premium subscription |
@@ -42,16 +43,22 @@ apply to your account, they show *unknown* while koopzegels keeps working.
 
 ### Delivery tracking
 
-On the day itself the AH app narrows the delivery slot down to a half-hour window
-("Onze bezorger verwacht tussen 15:15 en 15:45 uur bij je te zijn"). **Delivery ETA** and
-**Delivery status** follow that. They idle at the regular update interval, and poll every
-3 minutes from an hour before the slot starts until the order is delivered (or, when the
-driver runs late, until an hour after the slot ended).
+On the delivery day the AH app narrows the slot down to a half-hour window ("Onze
+bezorger verwacht tussen 15:15 en 15:45 uur bij je te zijn"), and it can still move that
+window during the day. **Delivery ETA**, **Delivery ETA end** and **Delivery status**
+follow it, polling more often the closer the delivery gets:
+
+| When | Polls every |
+| --- | --- |
+| Before the delivery day | The regular update interval, waking up at midnight |
+| On the delivery day | 10 minutes, including the arrival window |
+| From an hour before the slot until delivered (at the latest an hour after the slot ends) | 3 minutes |
 
 | Entity | State | Attributes |
 | --- | --- | --- |
 | **Delivery ETA** | Start of the expected arrival window; *unknown* until AH publishes one | `eta_start`, `eta_end`, `message` (AH's own wording), `order_id` |
-| **Delivery status** | The delivery status as the API names it | `status_description`, `tracking_type`, `message`, `delivered_at`, `live` (fast polling active), `date`, `start_time`, `end_time`, `order_id` |
+| **Delivery ETA end** | End of the expected arrival window; *unknown* until AH publishes one | — |
+| **Delivery status** | The delivery status as the API names it | `status_description`, `tracking_type`, `message`, `delivered_at`, `delivery_day` (10-minute polling active), `live` (3-minute polling active), `date`, `start_time`, `end_time`, `order_id` |
 
 See [the push notification example](#automation--push-notification-with-the-delivery-eta)
 for getting the window on your phone.
@@ -292,33 +299,40 @@ mode: single
 
 ### Automation — push notification with the delivery ETA
 
-Fires when AH publishes the arrival window, and again when it shifts:
+Fires when AH publishes the arrival window, and again whenever either end of it shifts:
 
 ```yaml
 alias: "AH: bezorger onderweg"
 triggers:
   - trigger: state
-    entity_id: sensor.albert_heijn_delivery_eta
+    entity_id:
+      - sensor.albert_heijn_delivery_eta
+      - sensor.albert_heijn_delivery_eta_end
     not_from: [unavailable]
     not_to: [unavailable, unknown]
 actions:
+  # Start and end usually move in the same poll. Waiting a moment (with
+  # mode: restart) turns those two changes into one notification.
+  - delay: "00:00:05"
+  - condition: template
+    value_template: "{{ has_value('sensor.albert_heijn_delivery_eta') }}"
   - action: notify.mobile_app_<phone>
     data:
       title: "🛒 Albert Heijn"
       message: >-
-        {% set start = state_attr(trigger.entity_id, 'eta_start') %}
-        {% set end = state_attr(trigger.entity_id, 'eta_end') %}
-        {% if end %}
+        {% set start = states('sensor.albert_heijn_delivery_eta') %}
+        {% set end = states('sensor.albert_heijn_delivery_eta_end') %}
+        {% if has_value('sensor.albert_heijn_delivery_eta_end') %}
         Bezorger verwacht tussen {{ start | as_timestamp | timestamp_custom('%H:%M') }}
         en {{ end | as_timestamp | timestamp_custom('%H:%M') }}.
         {% else %}
         Bezorger verwacht rond {{ start | as_timestamp | timestamp_custom('%H:%M') }}.
         {% endif %}
-mode: single
+mode: restart
 ```
 
 To pass on AH's own sentence instead, use
-`{{ state_attr(trigger.entity_id, 'message') }}` as the message. For a ping on every
+`{{ state_attr('sensor.albert_heijn_delivery_eta', 'message') }}` as the message. For a ping on every
 status change (packed, on its way, delivered), trigger on
 `sensor.albert_heijn_delivery_status` the same way.
 
@@ -414,7 +428,7 @@ uv run python scripts/discover_delivery.py "appie://login-exit?code=..."   # liv
 ```
 
 `discover_delivery.py` keeps polling the raw track & trace data of your upcoming orders
-and prints every change, so run it on a delivery day, from before the slot until the
+and prints every change, so run it on a delivery day, from the morning until the
 groceries are in. It asks for no address fields and masks order ids.
 
 `discover_list.py` verifies the shopping list CRUD against the live API; add

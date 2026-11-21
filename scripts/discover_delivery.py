@@ -1,7 +1,7 @@
 """Capture what the AH API says about a delivery while it is under way.
 
-Usage (from the repo root), ideally from an hour before the slot until the
-groceries are in:
+Usage (from the repo root), ideally from the morning of the delivery day until
+the groceries are in:
 
     uv run python scripts/discover_delivery.py "appie://login-exit?code=..."
     uv run python scripts/discover_delivery.py --refresh-token "<token>"

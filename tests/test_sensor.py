@@ -16,6 +16,7 @@ from custom_components.albert_heijn.const import (
     CONF_MEMBER_ID,
     CONF_REFRESH_TOKEN,
     DEFAULT_UPDATE_INTERVAL,
+    DELIVERY_DAY_INTERVAL,
     DELIVERY_LIVE_INTERVAL,
     DOMAIN,
 )
@@ -76,6 +77,7 @@ async def test_every_sensor_has_icon_and_name_translations(hass: HomeAssistant):
         "saving_goal",
         "basket",
         "delivery_eta",
+        "delivery_eta_end",
         "delivery_status",
     )
     for key in keys:
@@ -202,12 +204,17 @@ async def test_delivery_sensors_while_the_driver_is_on_the_way(hass: HomeAssista
     assert eta.attributes["message"] == ETA_MESSAGE
     assert eta.attributes["order_id"] == 777
 
+    eta_end = hass.states.get(_entity_id(hass, "delivery_eta_end"))
+    assert eta_end.state == "2026-11-15T14:45:00+00:00"  # 15:45 in Amsterdam
+    assert eta_end.attributes["device_class"] == "timestamp"
+
     status = hass.states.get(_entity_id(hass, "delivery_status"))
     assert status.state == "IN_TRANSIT"
     assert status.attributes["status_description"] == "Onderweg"
     assert status.attributes["tracking_type"] == "ON_THE_WAY"
     assert status.attributes["message"] == ETA_MESSAGE
     assert status.attributes["delivered_at"] is None
+    assert status.attributes["delivery_day"] is True
     assert status.attributes["live"] is True
     assert status.attributes["start_time"] == "15:00"
 
@@ -218,9 +225,11 @@ async def test_delivery_sensors_before_the_delivery_day(hass: HomeAssistant):
     eta = hass.states.get(_entity_id(hass, "delivery_eta"))
     assert eta.state == "unknown"
     assert "eta_start" not in eta.attributes
+    assert hass.states.get(_entity_id(hass, "delivery_eta_end")).state == "unknown"
 
     status = hass.states.get(_entity_id(hass, "delivery_status"))
     assert status.state == "PLANNED"
+    assert status.attributes["delivery_day"] is False
     assert status.attributes["live"] is False
     assert status.attributes["tracking_type"] is None
     assert status.attributes["date"] == "2099-01-05"
@@ -241,21 +250,40 @@ async def test_delivery_sensors_poll_fast_while_live(hass: HomeAssistant, freeze
     assert client.async_get_koopzegels.await_count == 1
 
 
-async def test_delivery_eta_appears_when_the_live_window_opens(hass: HomeAssistant, freezer):
+async def test_delivery_window_appears_at_midnight_and_follows_shifts(hass: HomeAssistant, freezer):
     await hass.config.async_set_time_zone("Europe/Amsterdam")
-    freezer.move_to("2026-11-15T11:30:00+01:00")  # slot 15:00-17:00, live from 14:00
-    # The fulfillment itself carries no estimate yet; track & trace will.
+    freezer.move_to("2026-11-14T21:00:00+01:00")  # the evening before; slot 15:00-17:00
+    # The fulfillment itself carries no estimate; track & trace does.
     client = await _setup_integration(hass, _live_client(replace(LIVE_DELIVERY, estimated=None, message=None)))
-    entity_id = _entity_id(hass, "delivery_eta")
-    assert hass.states.get(entity_id).state == "unknown"
+    eta_id = _entity_id(hass, "delivery_eta")
+    eta_end_id = _entity_id(hass, "delivery_eta_end")
+    assert hass.states.get(eta_id).state == "unknown"
+    assert hass.states.get(eta_end_id).state == "unknown"
     client.async_get_track_and_trace.assert_not_awaited()
 
-    freezer.tick(timedelta(hours=2, minutes=30, seconds=5))
+    # Midnight: the delivery day starts, and with it track & trace.
+    freezer.tick(timedelta(hours=3, seconds=5))
     async_fire_time_changed(hass)
     await hass.async_block_till_done(wait_background_tasks=True)
 
-    assert hass.states.get(entity_id).state == "2026-11-15T14:15:00+00:00"
-    assert hass.states.get(_entity_id(hass, "delivery_status")).attributes["live"] is True
+    assert hass.states.get(eta_id).state == "2026-11-15T14:15:00+00:00"
+    assert hass.states.get(eta_end_id).state == "2026-11-15T14:45:00+00:00"
+    status = hass.states.get(_entity_id(hass, "delivery_status"))
+    assert status.attributes["delivery_day"] is True
+    assert status.attributes["live"] is False
+
+    # AH moves the window later in the day; the next delivery-day poll follows.
+    client.async_get_track_and_trace.return_value = replace(
+        TRACK_AND_TRACE, eta_start="2026-11-15T15:40:00+01:00", eta_end="2026-11-15T16:10:00+01:00"
+    )
+    freezer.tick(DELIVERY_DAY_INTERVAL + timedelta(seconds=5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert hass.states.get(eta_id).state == "2026-11-15T14:40:00+00:00"
+    assert hass.states.get(eta_end_id).state == "2026-11-15T15:10:00+00:00"
+    assert hass.states.get(eta_id).attributes["eta_end"] == "2026-11-15T16:10:00+01:00"
+    assert client.async_get_track_and_trace.await_count == 2
 
 
 async def test_delivery_sensors_unavailable_when_details_fail_but_rest_keeps_working(hass: HomeAssistant):
@@ -270,6 +298,7 @@ async def test_delivery_sensors_unavailable_when_details_fail_but_rest_keeps_wor
     await _setup_integration(hass, client)
 
     assert hass.states.get(_entity_id(hass, "delivery_eta")).state == "unavailable"
+    assert hass.states.get(_entity_id(hass, "delivery_eta_end")).state == "unavailable"
     assert hass.states.get(_entity_id(hass, "delivery_status")).state == "unavailable"
     # The plain query behind the calendar and this sensor is untouched.
     assert hass.states.get(_entity_id(hass, "next_delivery")).state != "unknown"

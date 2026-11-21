@@ -35,6 +35,7 @@ async def async_setup_entry(
             AhSavingGoalSensor(coordinator, member_id),
             AhBasketSensor(coordinator, member_id),
             AhDeliveryEtaSensor(coordinator.delivery_coordinator, member_id),
+            AhDeliveryEtaEndSensor(coordinator.delivery_coordinator, member_id),
             AhDeliveryStatusSensor(coordinator.delivery_coordinator, member_id),
         ]
     )
@@ -287,6 +288,18 @@ class AhDeliveryEtaSensor(AhDeliverySensor):
         }
 
 
+class AhDeliveryEtaEndSensor(AhDeliverySensor):
+    """End of the arrival window that AH gives on the delivery day."""
+
+    _attr_translation_key = "delivery_eta_end"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    @property
+    def native_value(self) -> datetime | None:
+        """End of the expected arrival window; None until AH publishes a range."""
+        return self._data.eta_end
+
+
 class AhDeliveryStatusSensor(AhDeliverySensor):
     """Status of the current or next delivery, refreshed quickly while it is under way."""
 
@@ -300,7 +313,7 @@ class AhDeliveryStatusSensor(AhDeliverySensor):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Track & trace details; ``live`` tells whether the fast poll is running."""
+        """Track & trace details, plus which polling speed is active."""
         data = self._data
         if (delivery := data.delivery) is None:
             return {}
@@ -310,6 +323,7 @@ class AhDeliveryStatusSensor(AhDeliverySensor):
             "tracking_type": tracking.type if tracking else None,
             "message": data.message,
             "delivered_at": tracking.delivered_at if tracking else None,
+            "delivery_day": data.delivery_day,
             "live": data.live,
             "date": delivery.date,
             "start_time": delivery.start_time,

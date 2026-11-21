@@ -179,7 +179,7 @@ query HaOrderFulfillments {
 }
 """
 
-# --- Delivery tracking (the live ETA the app shows shortly before delivery) ---
+# --- Delivery tracking (the ETA window the app shows on the delivery day) ---
 # Field NAMES validated against the live schema on 2026-11-15. That needs no
 # login: POST {"clientId": "appie"} to /mobile-auth/v1/auth/token/anonymous and
 # send the query with that token. The gateway validates before it authorises,
@@ -243,10 +243,14 @@ query HaOrderTrackAndTrace($orderId: Int!) {
 }
 """
 
-# The delivery fast lane: poll quickly from DELIVERY_LIVE_LEAD before the slot
-# starts until the order is delivered, or until DELIVERY_LIVE_GRACE after the
-# slot ended (drivers run late). Outside that window it idles at the regular
-# update interval.
+# The delivery fast lane has three speeds:
+# - idle: the regular update interval, until the delivery day starts (00:00).
+# - delivery day: every DELIVERY_DAY_INTERVAL, with track & trace, because AH
+#   publishes the arrival window during the day and keeps shifting it.
+# - live: every DELIVERY_LIVE_INTERVAL from DELIVERY_LIVE_LEAD before the slot
+#   starts until the order is delivered, or until DELIVERY_LIVE_GRACE after the
+#   slot ended (drivers run late).
+DELIVERY_DAY_INTERVAL: Final = timedelta(minutes=10)
 DELIVERY_LIVE_INTERVAL: Final = timedelta(minutes=3)
 DELIVERY_LIVE_LEAD: Final = timedelta(hours=1)
 DELIVERY_LIVE_GRACE: Final = timedelta(hours=1)

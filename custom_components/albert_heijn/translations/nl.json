@@ -88,6 +88,9 @@
       "delivery_eta": {
         "name": "Verwachte bezorgtijd"
       },
+      "delivery_eta_end": {
+        "name": "Verwachte bezorgtijd (eind)"
+      },
       "delivery_status": {
         "name": "Bezorgstatus"
       }

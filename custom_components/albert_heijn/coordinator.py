@@ -35,6 +35,7 @@ from .const import (
     CONF_UPDATE_INTERVAL,
     DEFAULT_LIST_SCAN_INTERVAL,
     DEFAULT_UPDATE_INTERVAL_HOURS,
+    DELIVERY_DAY_INTERVAL,
     DELIVERY_DONE_STATUSES,
     DELIVERY_LIVE_GRACE,
     DELIVERY_LIVE_INTERVAL,
@@ -73,8 +74,9 @@ class AhDeliveryData:
     """What the delivery fast lane knows about the current or next delivery."""
 
     delivery: DeliveryInfo | None = None
-    # Only fetched while the delivery is live; None before and after.
+    # Only fetched on the delivery day itself; None before it.
     tracking: TrackAndTrace | None = None
+    delivery_day: bool = False  # polling at the delivery-day interval (or faster)
     live: bool = False  # polling at the fast interval right now
 
     @property
@@ -249,11 +251,14 @@ class AhCoordinator(DataUpdateCoordinator[AhData]):
 
 
 class AhDeliveryCoordinator(DataUpdateCoordinator[AhDeliveryData]):
-    """Follows the current or next delivery, quickly while it is under way.
+    """Follows the current or next delivery, more often the closer it gets.
 
-    Idles at the regular update interval, wakes up DELIVERY_LIVE_LEAD before
-    the slot starts and then polls every DELIVERY_LIVE_INTERVAL, with track &
-    trace, until the order is delivered or the slot is well and truly over.
+    Idles at the regular update interval until the delivery day starts. On the
+    day itself it polls every DELIVERY_DAY_INTERVAL, with track & trace,
+    because AH publishes the arrival window during the day and keeps shifting
+    it. From DELIVERY_LIVE_LEAD before the slot it polls every
+    DELIVERY_LIVE_INTERVAL, until the order is delivered or the slot is well
+    and truly over.
     """
 
     config_entry: AhConfigEntry
@@ -278,9 +283,12 @@ class AhDeliveryCoordinator(DataUpdateCoordinator[AhDeliveryData]):
 
         now = dt_util.now()
         delivery = self._current_delivery(deliveries, now)
+        done = delivery is None or (delivery.status or "").upper() in DELIVERY_DONE_STATUSES
+        live = not done and _reached(_live_start(delivery), now)
+        delivery_day = live or (not done and _reached(_day_start(delivery), now))
+
         tracking = None
-        live = delivery is not None and self._is_live(delivery, now)
-        if live and delivery.order_id is not None:
+        if delivery_day and delivery.order_id is not None:
             try:
                 tracking = await self.client.async_get_track_and_trace(delivery.order_id)
             except AhAuthError as err:
@@ -289,10 +297,11 @@ class AhDeliveryCoordinator(DataUpdateCoordinator[AhDeliveryData]):
                 # Best-effort: the message and estimate of the fulfillment remain.
                 _LOGGER.debug("track and trace unavailable: %s", err)
             if tracking is not None and tracking.delivered_at:
-                live = False  # delivered: keep this last snapshot, stop hurrying
+                # Delivered: keep this last snapshot, stop hurrying.
+                done, delivery_day, live = True, False, False
 
-        self.update_interval = self._next_interval(delivery, live, now)
-        return AhDeliveryData(delivery=delivery, tracking=tracking, live=live)
+        self.update_interval = self._next_interval(delivery, done, delivery_day, live, now)
+        return AhDeliveryData(delivery=delivery, tracking=tracking, delivery_day=delivery_day, live=live)
 
     @staticmethod
     def _current_delivery(deliveries: list[DeliveryInfo], now: datetime) -> DeliveryInfo | None:
@@ -304,24 +313,35 @@ class AhDeliveryCoordinator(DataUpdateCoordinator[AhDeliveryData]):
         ]
         return min(candidates, key=lambda candidate: candidate[0])[1] if candidates else None
 
-    @staticmethod
-    def _is_live(delivery: DeliveryInfo, now: datetime) -> bool:
-        """Whether the delivery is close enough (and not finished) to poll quickly."""
-        if (delivery.status or "").upper() in DELIVERY_DONE_STATUSES:
-            return False
-        start = slot_start(delivery)
-        return start is not None and now >= start - DELIVERY_LIVE_LEAD
-
-    def _next_interval(self, delivery: DeliveryInfo | None, live: bool, now: datetime) -> timedelta:
-        """Fast while live; otherwise idle, but never sleep through the start of the live window."""
+    def _next_interval(
+        self, delivery: DeliveryInfo | None, done: bool, delivery_day: bool, live: bool, now: datetime
+    ) -> timedelta:
+        """The interval for the current speed, shortened so that no speed-up is slept through."""
         if live:
             return DELIVERY_LIVE_INTERVAL
         idle = update_interval_from_options(self.config_entry)
-        if delivery is not None and (start := slot_start(delivery)) is not None:
-            until_live = start - DELIVERY_LIVE_LEAD - now
-            if until_live > timedelta(0):
-                return min(idle, max(until_live, DELIVERY_LIVE_INTERVAL))
-        return idle
+        if delivery is None or done:
+            return idle
+        interval = DELIVERY_DAY_INTERVAL if delivery_day else idle
+        for moment in (_day_start(delivery), _live_start(delivery)):
+            if moment is not None and (until := moment - now) > timedelta(0):
+                interval = min(interval, max(until, DELIVERY_LIVE_INTERVAL))
+        return interval
+
+
+def _day_start(delivery: DeliveryInfo) -> datetime | None:
+    """Midnight at the start of the delivery day: the delivery-day speed starts here."""
+    return _slot_datetime(delivery.date, "00:00")
+
+
+def _live_start(delivery: DeliveryInfo) -> datetime | None:
+    """DELIVERY_LIVE_LEAD before the slot starts: the live speed starts here."""
+    start = slot_start(delivery)
+    return start - DELIVERY_LIVE_LEAD if start is not None else None
+
+
+def _reached(moment: datetime | None, now: datetime) -> bool:
+    return moment is not None and now >= moment
 
 
 class AhListCoordinator(DataUpdateCoordinator[list[AhListItem]]):

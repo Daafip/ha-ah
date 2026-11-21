@@ -88,6 +88,9 @@
       "delivery_eta": {
         "name": "Delivery ETA"
       },
+      "delivery_eta_end": {
+        "name": "Delivery ETA end"
+      },
       "delivery_status": {
         "name": "Delivery status"
       }

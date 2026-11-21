@@ -49,6 +49,9 @@
       "delivery_eta": {
         "default": "mdi:truck-fast"
       },
+      "delivery_eta_end": {
+        "default": "mdi:clock-end"
+      },
       "delivery_status": {
         "default": "mdi:truck-check"
       }

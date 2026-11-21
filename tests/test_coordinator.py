@@ -10,7 +10,12 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.albert_heijn.api import AhApiError, AhAuthError
-from custom_components.albert_heijn.const import DEFAULT_UPDATE_INTERVAL, DELIVERY_LIVE_INTERVAL, DOMAIN
+from custom_components.albert_heijn.const import (
+    DEFAULT_UPDATE_INTERVAL,
+    DELIVERY_DAY_INTERVAL,
+    DELIVERY_LIVE_INTERVAL,
+    DOMAIN,
+)
 from custom_components.albert_heijn.coordinator import (
     AhCoordinator,
     AhDeliveryCoordinator,
@@ -172,8 +177,8 @@ async def test_list_api_error_marks_update_failed(hass: HomeAssistant):
 
 
 # --- delivery fast lane ---
-# LIVE_DELIVERY has slot 15:00-17:00 (Amsterdam) on 2026-11-15; the fast lane
-# runs from an hour before the slot until an hour after it.
+# LIVE_DELIVERY has slot 15:00-17:00 (Amsterdam) on 2026-11-15. The delivery-day
+# speed starts at midnight, the live speed at 14:00 and lasts until 18:00.
 
 
 async def _make_delivery_coordinator(hass: HomeAssistant, client) -> AhDeliveryCoordinator:
@@ -190,8 +195,8 @@ def _live_client(tracking=TRACK_AND_TRACE, delivery=LIVE_DELIVERY):
     return client
 
 
-def _amsterdam(time: str) -> str:
-    return f"2026-11-15T{time}:00+01:00"
+def _amsterdam(time: str, day: int = 15) -> str:
+    return f"2026-11-{day}T{time}:00+01:00"
 
 
 async def test_delivery_idle_when_next_delivery_is_far_away(hass: HomeAssistant, freezer):
@@ -201,6 +206,7 @@ async def test_delivery_idle_when_next_delivery_is_far_away(hass: HomeAssistant,
     data = await coordinator._async_update_data()
 
     assert data.delivery.order_id == 555  # the past delivery is skipped
+    assert data.delivery_day is False
     assert data.live is False
     assert data.tracking is None
     assert data.eta_start is None
@@ -218,6 +224,7 @@ async def test_delivery_live_fetches_track_and_trace(hass: HomeAssistant, freeze
     data = await coordinator._async_update_data()
 
     assert data.delivery == LIVE_DELIVERY
+    assert data.delivery_day is True
     assert data.live is True
     assert data.tracking == TRACK_AND_TRACE
     assert data.eta_start == datetime.fromisoformat(_amsterdam("15:15"))
@@ -230,23 +237,47 @@ async def test_delivery_live_fetches_track_and_trace(hass: HomeAssistant, freeze
 @pytest.mark.parametrize(
     ("now", "expected_interval"),
     [
-        ("11:30", timedelta(hours=2, minutes=30)),  # wake up at 14:00, an hour before the slot
-        ("06:00", DEFAULT_UPDATE_INTERVAL),  # further away than one idle interval
-        ("13:59", DELIVERY_LIVE_INTERVAL),  # never faster than the live rate
+        ("12:00", DEFAULT_UPDATE_INTERVAL),  # midnight is further away than one idle interval
+        ("21:00", timedelta(hours=3)),  # wake up at midnight, when the delivery day starts
+        ("23:58", DELIVERY_LIVE_INTERVAL),  # never faster than the live rate
     ],
 )
-async def test_delivery_idle_interval_never_sleeps_through_the_live_window(
-    hass: HomeAssistant, freezer, now, expected_interval
-):
-    freezer.move_to(_amsterdam(now))
+async def test_delivery_the_day_before_idles_until_midnight(hass: HomeAssistant, freezer, now, expected_interval):
+    freezer.move_to(_amsterdam(now, day=14))
     client = _live_client()
     coordinator = await _make_delivery_coordinator(hass, client)
     data = await coordinator._async_update_data()
 
     assert data.delivery == LIVE_DELIVERY
+    assert data.delivery_day is False
     assert data.live is False
+    assert data.tracking is None
     assert coordinator.update_interval == expected_interval
     client.async_get_track_and_trace.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("now", "expected_interval"),
+    [
+        ("00:00", DELIVERY_DAY_INTERVAL),
+        ("11:30", DELIVERY_DAY_INTERVAL),
+        ("13:55", timedelta(minutes=5)),  # wake up at 14:00, an hour before the slot
+        ("13:59", DELIVERY_LIVE_INTERVAL),  # never faster than the live rate
+    ],
+)
+async def test_delivery_day_follows_the_eta_window(hass: HomeAssistant, freezer, now, expected_interval):
+    freezer.move_to(_amsterdam(now))
+    client = _live_client()
+    coordinator = await _make_delivery_coordinator(hass, client)
+    data = await coordinator._async_update_data()
+
+    assert data.delivery_day is True
+    assert data.live is False
+    assert data.tracking == TRACK_AND_TRACE
+    assert data.eta_start == datetime.fromisoformat(_amsterdam("15:15"))
+    assert data.eta_end == datetime.fromisoformat(_amsterdam("15:45"))
+    assert coordinator.update_interval == expected_interval
+    client.async_get_track_and_trace.assert_awaited_once_with(777)
 
 
 @pytest.mark.parametrize("now", ["14:00", "16:59", "17:30"])  # lead, slot, running late
@@ -271,12 +302,14 @@ async def test_delivery_moves_on_once_the_slot_is_long_over(hass: HomeAssistant,
     client.async_get_track_and_trace.assert_not_awaited()
 
 
-async def test_delivery_stops_hurrying_once_delivered(hass: HomeAssistant, freezer):
-    freezer.move_to(LIVE_NOW)
-    delivered = replace(TRACK_AND_TRACE, type="DELIVERED", delivered_at=_amsterdam("15:18"))
+@pytest.mark.parametrize("now", ["11:00", "15:20"])  # early on the day, and while live
+async def test_delivery_stops_hurrying_once_delivered(hass: HomeAssistant, freezer, now):
+    freezer.move_to(_amsterdam(now))
+    delivered = replace(TRACK_AND_TRACE, type="DELIVERED", delivered_at=_amsterdam("10:58"))
     coordinator = await _make_delivery_coordinator(hass, _live_client(tracking=delivered))
     data = await coordinator._async_update_data()
 
+    assert data.delivery_day is False
     assert data.live is False
     assert data.tracking == delivered  # the last snapshot stays visible
     assert coordinator.update_interval == DEFAULT_UPDATE_INTERVAL
@@ -289,6 +322,7 @@ async def test_delivery_with_final_status_is_not_tracked(hass: HomeAssistant, fr
     data = await coordinator._async_update_data()
 
     assert data.delivery.status == "DELIVERED"
+    assert data.delivery_day is False
     assert data.live is False
     assert coordinator.update_interval == DEFAULT_UPDATE_INTERVAL
     client.async_get_track_and_trace.assert_not_awaited()

@@ -5,6 +5,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versioning: [SemVer](ht
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-21
+
+### Added
+
+- **Delivery ETA end** sensor: the end of AH's arrival window as its own
+  timestamp, next to **Delivery ETA** (the start).
+- `delivery_day` attribute on **Delivery status**: true while the
+  delivery-day polling runs.
+
+### Changed
+
+- Delivery tracking now also speeds up on the delivery day itself: from
+  midnight it polls every 10 minutes, including the arrival window, because
+  AH publishes that window during the day and can still move it. The 3-minute
+  polling from an hour before the slot is unchanged. Before, the window was
+  only fetched from an hour before the slot.
+- The README notification automation listens to both ends of the window, so a
+  shift of only the end time also sends a notification.
+
 ## [0.8.0] - 2026-11-15
 
 ### Added
